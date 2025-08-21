@@ -1,0 +1,29 @@
+import testing ;
+
+build-project src ;
+build-project test ;
+
+project webstat : requirements
+	<cxxstd>26
+	<visibility>hidden
+	<link>static
+	<toolset>gcc,<variant>debug:<warnings>pedantic
+	<toolset>clang,<variant>debug:<warnings>extra
+	<toolset>clang:<cflags>-Wno-c23-extensions
+	<variant>debug:<warnings-as-errors>on
+	<variant>debug:<cflags>-Wnon-virtual-dtor
+	<variant>debug:<cflags>-Wcast-align
+	<variant>debug:<cflags>-Wunused
+	<variant>debug:<cflags>-Woverloaded-virtual
+	<variant>debug:<cflags>-Wconversion
+	<variant>debug:<cflags>-Wsign-conversion
+	<variant>debug:<cflags>-Wnull-dereference
+	<variant>debug:<cflags>-Wdouble-promotion
+	<variant>debug:<cflags>-Wformat=2
+	<toolset>gcc,<variant>debug:<cflags>-Wold-style-cast
+	<toolset>gcc,<variant>debug:<cflags>-Wduplicated-cond
+	<toolset>gcc,<variant>debug:<cflags>-Wduplicated-branches
+	<toolset>gcc,<variant>debug:<cflags>-Wlogical-op
+	<toolset>gcc,<variant>debug:<cflags>-Wuseless-cast
+	<variant>release:<lto>on-thin
+	;

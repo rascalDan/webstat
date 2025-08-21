@@ -1,0 +1,17 @@
+path-constant inc : scnlib/include ;
+
+lib scn :
+	scnlib/src/scn/impl.cpp
+	:
+	<include>scnlib/src
+	<define>SCN_DISABLE_FAST_FLOAT
+	<define>SCN_DISABLE_REGEX
+	<warnings>off
+	-<variant>debug\:<warnings-as-errors>on
+	<warnings-as-errors>off
+	<cflags>-isystem\ $(inc)
+	: :
+	<define>SCN_DISABLE_FAST_FLOAT
+	<define>SCN_DISABLE_REGEX
+	<cflags>-isystem\ $(inc)
+	;

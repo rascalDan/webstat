@@ -1,0 +1,14 @@
+lib boost_unit_test_framework : : <link>shared ;
+
+path-constant src : ../src ;
+path-constant test : . ;
+
+run test-ingest.cpp :
+	-- :
+	:
+	<define>BOOST_TEST_DYN_LINK
+	<define>SRC=\"$(src)\"
+	<define>TEST=\"$(test)\"
+	<library>$(src)//webstat
+	<library>boost_unit_test_framework
+	;
