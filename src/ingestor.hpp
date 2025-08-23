@@ -4,6 +4,7 @@
 #include <c++11Helpers.h>
 #include <connection_fwd.h>
 #include <cstdio>
+#include <flat_set>
 #include <scn/scan.h>
 
 namespace WebStat {
@@ -39,6 +40,7 @@ namespace WebStat {
 	private:
 		template<typename... T> size_t storeEntities(const std::tuple<T...> &) const;
 
+		mutable std::flat_set<Crc32Value> existingEntities;
 		uint32_t hostnameId;
 		DB::ConnectionPtr dbconn;
 	};

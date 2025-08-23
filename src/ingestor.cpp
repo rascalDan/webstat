@@ -121,10 +121,14 @@ namespace WebStat {
 	size_t
 	Ingestor::storeEntity(const Entity entity) const
 	{
+		if (existingEntities.contains(entity.first)) {
+			return 0;
+		}
 		auto insert = dbconn->modify(SQL::ENTITY_INSERT, SQL::ENTITY_INSERT_OPTS);
 		insert->bindParamI(0, entity.first);
 		insert->bindParamS(1, entity.second);
 		insert->execute();
+		existingEntities.emplace(entity.first);
 		return 1;
 	}
 
