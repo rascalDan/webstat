@@ -1,12 +1,18 @@
 #pragma once
 
 #include "logTypes.hpp"
+#include <c++11Helpers.h>
 #include <cstdio>
 #include <scn/scan.h>
 
 namespace WebStat {
 	class Ingestor {
 	public:
+		Ingestor() = default;
+
+		virtual ~Ingestor() = default;
+		SPECIAL_MEMBERS_DEFAULT_MOVE_NO_COPY(Ingestor);
+
 		using ScanResult = decltype(scn::scan<std::string_view, std::string_view, uint64_t, std::string_view,
 				QuotedString, QueryString, std::string_view, unsigned short, unsigned int, unsigned int, CLFString,
 				CLFString>(std::declval<std::string_view>(), ""));
