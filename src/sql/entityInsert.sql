@@ -1,0 +1,1 @@
+INSERT INTO entities(id, value) VALUES(?, ?) ON CONFLICT DO NOTHING

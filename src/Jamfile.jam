@@ -1,4 +1,4 @@
-lib webstat : ingestor.cpp logTypes.cpp :
+lib webstat : ingestor.cpp logTypes.cpp sql.cpp :
 	<include>.
 	<library>..//adhocutil
 	<library>..//dbppcore

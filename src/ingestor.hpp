@@ -23,6 +23,10 @@ namespace WebStat {
 
 		void ingestLog(std::FILE *);
 
+		template<typename T> void storeEntity(const T &) const;
+		void storeEntity(Entity) const;
+		void storeEntity(std::optional<Entity>) const;
+
 	protected:
 		size_t linesRead = 0;
 		size_t linesParsed = 0;

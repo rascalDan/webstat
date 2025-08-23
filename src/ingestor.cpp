@@ -1,4 +1,7 @@
 #include "ingestor.hpp"
+#include "sql.hpp"
+#include <connection.h>
+#include <modifycommand.h>
 #include <scn/scan.h>
 #include <syslog.h>
 #include <utility>
@@ -72,6 +75,29 @@ namespace WebStat {
 				syslog(LOG_WARNING, "Discarded line: [%s]", line->value().c_str());
 				linesDiscarded++;
 			}
+		}
+	}
+
+	template<typename T>
+	void
+	Ingestor::storeEntity(const T &) const
+	{
+	}
+
+	void
+	Ingestor::storeEntity(const Entity entity) const
+	{
+		auto insert = dbconn->modify(SQL::ENTITY_INSERT, SQL::ENTITY_INSERT_OPTS);
+		insert->bindParamI(0, entity.first);
+		insert->bindParamS(1, entity.second);
+		insert->execute();
+	}
+
+	void
+	Ingestor::storeEntity(const std::optional<Entity> entity) const
+	{
+		if (entity) {
+			storeEntity(*entity);
 		}
 	}
 }
