@@ -101,37 +101,40 @@ namespace WebStat {
 	}
 
 	template<typename... T>
-	void
+	size_t
 	Ingestor::storeEntities(const std::tuple<T...> & values) const
 	{
-		std::apply(
+		return std::apply(
 				[this](auto &&... value) {
-					(this->storeEntity(value), ...);
+					return (this->storeEntity(value) + ...);
 				},
 				values);
 	}
 
 	template<typename T>
-	void
+	size_t
 	Ingestor::storeEntity(const T &) const
 	{
+		return 0;
 	}
 
-	void
+	size_t
 	Ingestor::storeEntity(const Entity entity) const
 	{
 		auto insert = dbconn->modify(SQL::ENTITY_INSERT, SQL::ENTITY_INSERT_OPTS);
 		insert->bindParamI(0, entity.first);
 		insert->bindParamS(1, entity.second);
 		insert->execute();
+		return 1;
 	}
 
-	void
+	size_t
 	Ingestor::storeEntity(const std::optional<Entity> entity) const
 	{
 		if (entity) {
-			storeEntity(*entity);
+			return storeEntity(*entity);
 		}
+		return 0;
 	}
 
 	template<typename... T>

@@ -24,9 +24,11 @@ namespace WebStat {
 		void ingestLog(std::FILE *);
 		void ingestLogLine(std::string_view);
 
-		template<typename T> void storeEntity(const T &) const;
-		void storeEntity(Entity) const;
-		void storeEntity(std::optional<Entity>) const;
+		template<typename T> [[nodiscard]] size_t storeEntity(const T &) const;
+		// NOLINTNEXTLINE(modernize-use-nodiscard); testing exposition only
+		size_t storeEntity(Entity) const;
+		// NOLINTNEXTLINE(modernize-use-nodiscard); testing exposition only
+		size_t storeEntity(std::optional<Entity>) const;
 		template<typename... T> void storeLogLine(const std::tuple<T...> &) const;
 
 	protected:
@@ -35,7 +37,7 @@ namespace WebStat {
 		size_t linesDiscarded = 0;
 
 	private:
-		template<typename... T> void storeEntities(const std::tuple<T...> &) const;
+		template<typename... T> size_t storeEntities(const std::tuple<T...> &) const;
 
 		uint32_t hostnameId;
 		DB::ConnectionPtr dbconn;
