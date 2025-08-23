@@ -1,8 +1,14 @@
+using pkg-config ;
+import pkg-config ;
 import testing ;
 
 build-project src ;
 build-project test ;
 
+pkg-config.import glibmm : : <name>glibmm-2.68 ;
+lib adhocutil : : <link>shared : : <include>/usr/include/adhocutil <library>glibmm ;
+lib dbppcore : : <link>shared : : <include>/usr/include/dbpp <library>adhocutil ;
+lib dbpp-postgresql : : <link>shared : : <include>/usr/include/dbpp-postgresql <library>dbppcore ;
 lib z : : <link>shared ;
 
 project webstat : requirements

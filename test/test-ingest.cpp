@@ -2,7 +2,24 @@
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
 
+#include <dbpp-postgresql/pq-mock.h>
+#include <filesystem>
 #include <ingestor.hpp>
+#include <mockDatabase.h>
+
+#define XSTR(s) STR(s)
+#define STR(s) #s
+const std::filesystem::path SRC_DIR(XSTR(SRC));
+const std::filesystem::path TEST_DIR(XSTR(TEST));
+#undef XSTR
+#undef STR
+
+class Mock : public DB::PluginMock<PQ::Mock> {
+public:
+	Mock() : DB::PluginMock<PQ::Mock>("webstat", {SRC_DIR / "schema.sql"}, "user=postgres dbname=postgres") { }
+};
+
+BOOST_GLOBAL_FIXTURE(Mock);
 
 using ScanValues = std::remove_cvref_t<decltype(std::declval<WebStat::Ingestor::ScanResult>()->values())>;
 template<typename Out> using ParseData = std::tuple<std::string_view, Out>;

@@ -1,14 +1,20 @@
 lib boost_unit_test_framework : : <link>shared ;
+lib dbpptestcore : : <link>shared ;
+lib stdc++fs ;
 
 path-constant src : ../src ;
 path-constant test : . ;
 
 run test-ingest.cpp :
 	-- :
+	../src/schema.sql
 	:
 	<define>BOOST_TEST_DYN_LINK
 	<define>SRC=\"$(src)\"
 	<define>TEST=\"$(test)\"
 	<library>$(src)//webstat
+	<library>..//dbpp-postgresql
 	<library>boost_unit_test_framework
+	<library>dbpptestcore
+	<library>stdc++fs
 	;
