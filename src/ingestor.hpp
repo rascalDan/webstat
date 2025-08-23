@@ -2,13 +2,14 @@
 
 #include "logTypes.hpp"
 #include <c++11Helpers.h>
+#include <connection_fwd.h>
 #include <cstdio>
 #include <scn/scan.h>
 
 namespace WebStat {
 	class Ingestor {
 	public:
-		Ingestor() = default;
+		Ingestor(DB::ConnectionPtr dbconn);
 
 		virtual ~Ingestor() = default;
 		SPECIAL_MEMBERS_DEFAULT_MOVE_NO_COPY(Ingestor);
@@ -26,5 +27,8 @@ namespace WebStat {
 		size_t linesRead = 0;
 		size_t linesParsed = 0;
 		size_t linesDiscarded = 0;
+
+	private:
+		DB::ConnectionPtr dbconn;
 	};
 }

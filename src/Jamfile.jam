@@ -1,9 +1,13 @@
 lib webstat : ingestor.cpp logTypes.cpp :
 	<include>.
 	<library>..//adhocutil
+	<library>..//dbppcore
 	<library>../thirdparty//scn
 	<library>..//z
 	: :
 	<include>.
 	;
-exe webstat_logger : webstat_logger_main.cpp : <library>webstat ;
+exe webstat_logger : webstat_logger_main.cpp :
+	<library>webstat
+	<library>..//dbpp-postgresql
+;

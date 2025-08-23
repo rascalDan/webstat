@@ -38,6 +38,8 @@ namespace WebStat {
 		}
 	}
 
+	Ingestor::Ingestor(DB::ConnectionPtr dbconn) : dbconn {std::move(dbconn)} { }
+
 	Ingestor::ScanResult
 	Ingestor::scanLogLine(std::string_view input)
 	{
