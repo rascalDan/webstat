@@ -186,3 +186,15 @@ BOOST_DATA_TEST_CASE(ExtractFields,
 	BOOST_REQUIRE(result);
 	BOOST_CHECK_EQUAL(result->values(), expected);
 }
+
+BOOST_TEST_DECORATOR(*boost::unit_test::depends_on("ExtractFields"))
+
+BOOST_DATA_TEST_CASE(StoreLogLine,
+		boost::unit_test::data::make({
+				LOGLINE1,
+				LOGLINE2,
+		}),
+		line)
+{
+	WebStat::Ingestor {"test-hostname", DB::MockDatabase::openConnectionTo("webstat")}.ingestLogLine(line);
+}

@@ -1,11 +1,21 @@
 #include "ingestor.hpp"
 #include "sql.hpp"
 #include <connection.h>
+#include <dbTypes.h>
 #include <modifycommand.h>
 #include <scn/scan.h>
 #include <syslog.h>
 #include <utility>
 #include <zlib.h>
+
+namespace DB {
+	template<>
+	void
+	DB::Command::bindParam(unsigned int idx, const WebStat::Entity & entity)
+	{
+		bindParamI(idx, entity.first);
+	}
+}
 
 namespace WebStat {
 	namespace {
@@ -82,6 +92,7 @@ namespace WebStat {
 			linesParsed++;
 			const auto values = crc32ScanValues(result->values());
 			storeEntities(values);
+			storeLogLine(values);
 		}
 		else {
 			syslog(LOG_WARNING, "Discarded line: [%.*s]", static_cast<int>(line.length()), line.data());
@@ -121,5 +132,22 @@ namespace WebStat {
 		if (entity) {
 			storeEntity(*entity);
 		}
+	}
+
+	template<typename... T>
+	void
+	Ingestor::storeLogLine(const std::tuple<T...> & values) const
+	{
+		auto insert = dbconn->modify(SQL::ACCESS_LOG_INSERT, SQL::ACCESS_LOG_INSERT_OPTS);
+
+		insert->bindParam(0, hostnameId);
+		std::apply(
+				[&insert](auto &&... value) {
+					unsigned int param = 1;
+					(insert->bindParam(param++, value), ...);
+				},
+				values);
+
+		insert->execute();
 	}
 }

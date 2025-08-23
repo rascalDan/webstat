@@ -27,6 +27,7 @@ namespace WebStat {
 		template<typename T> void storeEntity(const T &) const;
 		void storeEntity(Entity) const;
 		void storeEntity(std::optional<Entity>) const;
+		template<typename... T> void storeLogLine(const std::tuple<T...> &) const;
 
 	protected:
 		size_t linesRead = 0;
