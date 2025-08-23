@@ -140,19 +140,24 @@ BOOST_DATA_TEST_CASE(CLFStringsBad,
 	BOOST_REQUIRE(!scn::scan<WebStat::CLFString>(input, "{}"));
 }
 
+constexpr std::string_view LOGLINE1
+		= R"LOG(git.randomdan.homeip.net 98.82.40.168 1755561576768318 GET "/repo/gentoobrowse-api/commit/gentoobrowse-api/unittests/fixtures/756569aa764177340726dd3d40b41d89b11b20c7/app-crypt/pdfcrack/Manifest" "?h=gentoobrowse-api-0.9.1&id=a2ed3fd30333721accd4b697bfcb6cc4165c7714" HTTP/1.1 200 1884 107791 "-" "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Amazonbot/0.1; +https://developer.amazon.com/support/amazonbot) Chrome/119.0.6045.214 Safari/537.36")LOG";
+constexpr std::string_view LOGLINE2
+		= R"LOG(www.randomdan.homeip.net 43.128.84.166 1755561575973204 GET "/app-dicts/myspell-et/Manifest" "" HTTP/1.1 200 312 10369 "https://google.com" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36")LOG";
+
 BOOST_TEST_DECORATOR(*boost::unit_test::depends_on("QuotedStringsGood"))
 BOOST_TEST_DECORATOR(*boost::unit_test::depends_on("QueryStringsGood"))
 BOOST_TEST_DECORATOR(*boost::unit_test::depends_on("CLFStringsGood"))
 
 BOOST_DATA_TEST_CASE(ExtractFields,
 		boost::unit_test::data::make<ParseData<WebStat::Ingestor::ScanValues>>({
-				{R"LOG(git.randomdan.homeip.net 98.82.40.168 1755561576768318 GET "/repo/gentoobrowse-api/commit/gentoobrowse-api/unittests/fixtures/756569aa764177340726dd3d40b41d89b11b20c7/app-crypt/pdfcrack/Manifest" "?h=gentoobrowse-api-0.9.1&id=a2ed3fd30333721accd4b697bfcb6cc4165c7714" HTTP/1.1 200 1884 107791 "-" "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Amazonbot/0.1; +https://developer.amazon.com/support/amazonbot) Chrome/119.0.6045.214 Safari/537.36")LOG",
+				{LOGLINE1,
 						{"git.randomdan.homeip.net", "98.82.40.168", 1755561576768318, "GET",
 								R"(/repo/gentoobrowse-api/commit/gentoobrowse-api/unittests/fixtures/756569aa764177340726dd3d40b41d89b11b20c7/app-crypt/pdfcrack/Manifest)",
 								R"(h=gentoobrowse-api-0.9.1&id=a2ed3fd30333721accd4b697bfcb6cc4165c7714)", "HTTP/1.1",
 								200, 1884, 107791, std::nullopt,
 								R"(Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Amazonbot/0.1; +https://developer.amazon.com/support/amazonbot) Chrome/119.0.6045.214 Safari/537.36)"}},
-				{R"LOG(www.randomdan.homeip.net 43.128.84.166 1755561575973204 GET "/app-dicts/myspell-et/Manifest" "" HTTP/1.1 200 312 10369 "https://google.com" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36")LOG",
+				{LOGLINE2,
 						{"www.randomdan.homeip.net", "43.128.84.166", 1755561575973204, "GET",
 								"/app-dicts/myspell-et/Manifest", std::nullopt, "HTTP/1.1", 200, 312, 10369,
 								"https://google.com",
