@@ -9,7 +9,7 @@
 namespace WebStat {
 	class Ingestor {
 	public:
-		Ingestor(DB::ConnectionPtr dbconn);
+		Ingestor(std::string_view hostname, DB::ConnectionPtr dbconn);
 
 		virtual ~Ingestor() = default;
 		SPECIAL_MEMBERS_DEFAULT_MOVE_NO_COPY(Ingestor);
@@ -33,6 +33,7 @@ namespace WebStat {
 		size_t linesDiscarded = 0;
 
 	private:
+		uint32_t hostnameId;
 		DB::ConnectionPtr dbconn;
 	};
 }

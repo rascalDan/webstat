@@ -41,7 +41,11 @@ namespace WebStat {
 		}
 	}
 
-	Ingestor::Ingestor(DB::ConnectionPtr dbconn) : dbconn {std::move(dbconn)} { }
+	Ingestor::Ingestor(const std::string_view hostname, DB::ConnectionPtr dbconn) :
+		hostnameId {crc32(hostname)}, dbconn {std::move(dbconn)}
+	{
+		storeEntity({hostnameId, hostname});
+	}
 
 	Ingestor::ScanResult
 	Ingestor::scanLogLine(std::string_view input)
