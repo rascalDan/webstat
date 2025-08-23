@@ -21,6 +21,9 @@ namespace WebStat {
 		using std::optional<std::string>::operator=;
 		bool operator<=>(const CLFString &) const = default;
 	};
+
+	using Crc32Value = uint32_t;
+	using Entity = std::pair<Crc32Value, std::string_view>;
 }
 
 namespace scn {

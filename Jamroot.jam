@@ -3,6 +3,8 @@ import testing ;
 build-project src ;
 build-project test ;
 
+lib z : : <link>shared ;
+
 project webstat : requirements
 	<cxxstd>26
 	<visibility>hidden

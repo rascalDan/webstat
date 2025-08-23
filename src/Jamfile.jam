@@ -1,6 +1,7 @@
 lib webstat : ingestor.cpp logTypes.cpp :
 	<include>.
 	<library>../thirdparty//scn
+	<library>..//z
 	: :
 	<include>.
 	;

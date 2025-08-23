@@ -145,7 +145,7 @@ BOOST_TEST_DECORATOR(*boost::unit_test::depends_on("QueryStringsGood"))
 BOOST_TEST_DECORATOR(*boost::unit_test::depends_on("CLFStringsGood"))
 
 BOOST_DATA_TEST_CASE(ExtractFields,
-		boost::unit_test::data::make<ParseData<ScanValues>>({
+		boost::unit_test::data::make<ParseData<WebStat::Ingestor::ScanValues>>({
 				{R"LOG(git.randomdan.homeip.net 98.82.40.168 1755561576768318 GET "/repo/gentoobrowse-api/commit/gentoobrowse-api/unittests/fixtures/756569aa764177340726dd3d40b41d89b11b20c7/app-crypt/pdfcrack/Manifest" "?h=gentoobrowse-api-0.9.1&id=a2ed3fd30333721accd4b697bfcb6cc4165c7714" HTTP/1.1 200 1884 107791 "-" "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Amazonbot/0.1; +https://developer.amazon.com/support/amazonbot) Chrome/119.0.6045.214 Safari/537.36")LOG",
 						{"git.randomdan.homeip.net", "98.82.40.168", 1755561576768318, "GET",
 								R"(/repo/gentoobrowse-api/commit/gentoobrowse-api/unittests/fixtures/756569aa764177340726dd3d40b41d89b11b20c7/app-crypt/pdfcrack/Manifest)",

@@ -1,8 +1,43 @@
 #include "ingestor.hpp"
 #include <scn/scan.h>
 #include <syslog.h>
+#include <utility>
+#include <zlib.h>
 
 namespace WebStat {
+	namespace {
+		Crc32Value
+		crc32(const std::string_view value)
+		{
+			return static_cast<Crc32Value>(::crc32(::crc32(0, Z_NULL, 0), reinterpret_cast<const Bytef *>(value.data()),
+					static_cast<uInt>(value.length())));
+		}
+
+		Entity
+		addCrc32(const std::string_view value)
+		{
+			return {crc32(value), value};
+		}
+
+		std::optional<Entity>
+		addCrc32o(const std::optional<std::string_view> value)
+		{
+			return value.transform(addCrc32);
+		}
+
+		auto
+		crc32ScanValues(const Ingestor::ScanValues & values)
+		{
+			return std::apply(
+					[](auto &&... value) {
+						return std::make_tuple(addCrc32(value...[0]), value...[1], value...[2], value...[3],
+								addCrc32(value...[4]), addCrc32o(value...[5]), value...[6], value...[7], value...[8],
+								value...[9], addCrc32o(value...[10]), addCrc32o(value...[11]));
+					},
+					values);
+		}
+	}
+
 	Ingestor::ScanResult
 	Ingestor::scanLogLine(std::string_view input)
 	{
