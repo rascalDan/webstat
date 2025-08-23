@@ -22,6 +22,7 @@ namespace WebStat {
 		[[nodiscard]] static ScanResult scanLogLine(std::string_view);
 
 		void ingestLog(std::FILE *);
+		void ingestLogLine(std::string_view);
 
 		template<typename T> void storeEntity(const T &) const;
 		void storeEntity(Entity) const;
@@ -33,6 +34,8 @@ namespace WebStat {
 		size_t linesDiscarded = 0;
 
 	private:
+		template<typename... T> void storeEntities(const std::tuple<T...> &) const;
+
 		uint32_t hostnameId;
 		DB::ConnectionPtr dbconn;
 	};

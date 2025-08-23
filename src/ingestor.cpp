@@ -71,15 +71,33 @@ namespace WebStat {
 	{
 		while (auto line = scn::scan<std::string>(input, "{:[^\n]}\n")) {
 			linesRead++;
-			if (auto result = scanLogLine(line->value())) {
-				linesParsed++;
-				std::ignore = result->values();
-			}
-			else {
-				syslog(LOG_WARNING, "Discarded line: [%s]", line->value().c_str());
-				linesDiscarded++;
-			}
+			ingestLogLine(line->value());
 		}
+	}
+
+	void
+	Ingestor::ingestLogLine(const std::string_view line)
+	{
+		if (auto result = scanLogLine(line)) {
+			linesParsed++;
+			const auto values = crc32ScanValues(result->values());
+			storeEntities(values);
+		}
+		else {
+			syslog(LOG_WARNING, "Discarded line: [%.*s]", static_cast<int>(line.length()), line.data());
+			linesDiscarded++;
+		}
+	}
+
+	template<typename... T>
+	void
+	Ingestor::storeEntities(const std::tuple<T...> & values) const
+	{
+		std::apply(
+				[this](auto &&... value) {
+					(this->storeEntity(value), ...);
+				},
+				values);
 	}
 
 	template<typename T>
