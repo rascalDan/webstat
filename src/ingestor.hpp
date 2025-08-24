@@ -25,11 +25,6 @@ namespace WebStat {
 		void ingestLog(std::FILE *);
 		void ingestLogLine(std::string_view);
 
-		template<typename T> [[nodiscard]] size_t storeEntity(const T &) const;
-		// NOLINTNEXTLINE(modernize-use-nodiscard); testing exposition only
-		size_t storeEntity(Entity) const;
-		// NOLINTNEXTLINE(modernize-use-nodiscard); testing exposition only
-		size_t storeEntity(std::optional<Entity>) const;
 		template<typename... T> void storeLogLine(const std::tuple<T...> &) const;
 
 	protected:

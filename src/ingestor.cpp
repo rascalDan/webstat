@@ -1,5 +1,6 @@
 #include "ingestor.hpp"
 #include "sql.hpp"
+#include "util.hpp"
 #include <connection.h>
 #include <dbTypes.h>
 #include <modifycommand.h>
@@ -54,7 +55,7 @@ namespace WebStat {
 	Ingestor::Ingestor(const std::string_view hostname, DB::ConnectionPtr dbconn) :
 		hostnameId {crc32(hostname)}, dbconn {std::move(dbconn)}
 	{
-		storeEntity({hostnameId, hostname});
+		storeEntities(std::make_tuple(std::make_pair(hostnameId, hostname)));
 	}
 
 	Ingestor::ScanResult
@@ -104,41 +105,29 @@ namespace WebStat {
 	size_t
 	Ingestor::storeEntities(const std::tuple<T...> & values) const
 	{
-		return std::apply(
-				[this](auto &&... value) {
-					return (this->storeEntity(value) + ...);
+		return visitSum(
+				[this]<typename X>(const X & entity) -> size_t {
+					auto insertIfReqd = [this](auto && entity) -> size_t {
+						if (existingEntities.contains(entity.first)) {
+							return 0;
+						}
+						auto insert = dbconn->modify(SQL::ENTITY_INSERT, SQL::ENTITY_INSERT_OPTS);
+						insert->bindParamI(0, entity.first);
+						insert->bindParamS(1, entity.second);
+						insert->execute();
+						existingEntities.emplace(entity.first);
+						return 1;
+					};
+
+					if constexpr (std::is_same_v<X, Entity>) {
+						return insertIfReqd(entity);
+					}
+					else if constexpr (std::is_same_v<X, std::optional<Entity>>) {
+						entity.transform(insertIfReqd).value_or(0);
+					}
+					return 0;
 				},
 				values);
-	}
-
-	template<typename T>
-	size_t
-	Ingestor::storeEntity(const T &) const
-	{
-		return 0;
-	}
-
-	size_t
-	Ingestor::storeEntity(const Entity entity) const
-	{
-		if (existingEntities.contains(entity.first)) {
-			return 0;
-		}
-		auto insert = dbconn->modify(SQL::ENTITY_INSERT, SQL::ENTITY_INSERT_OPTS);
-		insert->bindParamI(0, entity.first);
-		insert->bindParamS(1, entity.second);
-		insert->execute();
-		existingEntities.emplace(entity.first);
-		return 1;
-	}
-
-	size_t
-	Ingestor::storeEntity(const std::optional<Entity> entity) const
-	{
-		if (entity) {
-			return storeEntity(*entity);
-		}
-		return 0;
 	}
 
 	template<typename... T>
