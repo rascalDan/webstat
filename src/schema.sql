@@ -10,7 +10,7 @@ CREATE TABLE entities (
 );
 
 CREATE TABLE access_log (
-	id serial NOT NULL,
+	id bigint GENERATED ALWAYS AS IDENTITY,
 	hostname bigint NOT NULL,
 	virtual_host bigint NOT NULL,
 	remoteip inet NOT NULL,
