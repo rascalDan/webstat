@@ -5,14 +5,24 @@ lib stdc++fs ;
 path-constant src : ../src ;
 path-constant test : . ;
 
+project WebStat-Testing : requirements
+	<define>SRC=\"$(src)\"
+	<define>TEST=\"$(test)\"
+	<library>$(src)//webstat
+	;
+
+lib test-util :
+	test-util.cpp
+	:
+	<library>..//dbpp-postgresql
+	;
+
 run test-ingest.cpp :
 	-- :
 	../src/schema.sql
 	:
 	<define>BOOST_TEST_DYN_LINK
-	<define>SRC=\"$(src)\"
-	<define>TEST=\"$(test)\"
-	<library>$(src)//webstat
+	<library>test-util
 	<library>..//dbpp-postgresql
 	<library>boost_unit_test_framework
 	<library>dbpptestcore

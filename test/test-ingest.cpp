@@ -2,32 +2,14 @@
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
 
-#include <dbpp-postgresql/pq-mock.h>
-#include <filesystem>
+#include "test-util.hpp"
+
 #include <ingestor.hpp>
-#include <mockDatabase.h>
 
-#define XSTR(s) STR(s)
-#define STR(s) #s
-const std::filesystem::path SRC_DIR(XSTR(SRC));
-const std::filesystem::path TEST_DIR(XSTR(TEST));
-#undef XSTR
-#undef STR
-
-class Mock : public DB::PluginMock<PQ::Mock> {
-public:
-	Mock() : DB::PluginMock<PQ::Mock>("webstat", {SRC_DIR / "schema.sql"}, "user=postgres dbname=postgres") { }
-};
-
-BOOST_GLOBAL_FIXTURE(Mock);
-
-using ScanValues = std::remove_cvref_t<decltype(std::declval<WebStat::Ingestor::ScanResult>()->values())>;
-template<typename Out> using ParseData = std::tuple<std::string_view, Out>;
-template<auto Deleter>
-using DeleteWith = decltype([](auto obj) {
-	return Deleter(obj);
-});
-using FilePtr = std::unique_ptr<std::FILE, DeleteWith<&fclose>>;
+namespace {
+	using namespace WebStat;
+	BOOST_GLOBAL_FIXTURE(MockDB);
+}
 
 namespace std {
 	template<typename T>
@@ -53,7 +35,7 @@ namespace std {
 }
 
 BOOST_DATA_TEST_CASE(QuotedStringsGood,
-		boost::unit_test::data::make<ParseData<WebStat::QuotedString>>({
+		boost::unit_test::data::make<WebStat::ParseData<WebStat::QuotedString>>({
 				{R"("")", ""},
 				{R"("-")", "-"},
 				{R"(".")", "."},
@@ -79,7 +61,7 @@ BOOST_DATA_TEST_CASE(QuotedStringsBad,
 }
 
 BOOST_DATA_TEST_CASE(QueryStringsGood,
-		boost::unit_test::data::make<ParseData<WebStat::QueryString>>({
+		boost::unit_test::data::make<WebStat::ParseData<WebStat::QueryString>>({
 				{R"("")", std::nullopt},
 				{R"("?")", ""},
 				{R"("?something")", "something"},
@@ -110,7 +92,7 @@ BOOST_DATA_TEST_CASE(QueryStringsBad,
 BOOST_TEST_DECORATOR(*boost::unit_test::timeout(1))
 
 BOOST_DATA_TEST_CASE(CLFStringsDecode,
-		boost::unit_test::data::make<ParseData<std::string>>({
+		boost::unit_test::data::make<WebStat::ParseData<std::string>>({
 				{"", ""},
 				{"plain", "plain"},
 				{R"(hex\x41)", "hexA"},
@@ -128,7 +110,7 @@ BOOST_DATA_TEST_CASE(CLFStringsDecode,
 BOOST_TEST_DECORATOR(*boost::unit_test::depends_on("CLFStringsDecode"))
 
 BOOST_DATA_TEST_CASE(CLFStringsGood,
-		boost::unit_test::data::make<ParseData<WebStat::CLFString>>({
+		boost::unit_test::data::make<WebStat::ParseData<WebStat::CLFString>>({
 				{R"("")", ""},
 				{R"("-")", std::nullopt},
 				{R"("?")", "?"},
@@ -167,7 +149,7 @@ BOOST_TEST_DECORATOR(*boost::unit_test::depends_on("QueryStringsGood"))
 BOOST_TEST_DECORATOR(*boost::unit_test::depends_on("CLFStringsGood"))
 
 BOOST_DATA_TEST_CASE(ExtractFields,
-		boost::unit_test::data::make<ParseData<WebStat::Ingestor::ScanValues>>({
+		boost::unit_test::data::make<WebStat::ParseData<WebStat::Ingestor::ScanValues>>({
 				{LOGLINE1,
 						{"git.randomdan.homeip.net", "98.82.40.168", 1755561576768318, "GET",
 								R"(/repo/gentoobrowse-api/commit/gentoobrowse-api/unittests/fixtures/756569aa764177340726dd3d40b41d89b11b20c7/app-crypt/pdfcrack/Manifest)",
