@@ -1,3 +1,4 @@
+lib benchmark : : <link>shared ;
 lib boost_unit_test_framework : : <link>shared ;
 lib dbpptestcore : : <link>shared ;
 lib stdc++fs ;
@@ -28,3 +29,14 @@ run test-ingest.cpp :
 	<library>dbpptestcore
 	<library>stdc++fs
 	;
+
+exe perf-ingest : perf-ingest.cpp :
+	<library>test-util
+	<library>$(src)//webstat
+	<library>..//dbpp-postgresql
+	<library>benchmark
+	<library>dbpptestcore
+	<library>stdc++fs
+	;
+explicit run-perf-ingest ;
+run perf-ingest : : : : run-perf-ingest ;
