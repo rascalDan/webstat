@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <flat_set>
 #include <scn/scan.h>
+#include <span>
 
 namespace WebStat {
 	class Ingestor {
@@ -33,7 +34,10 @@ namespace WebStat {
 		size_t linesDiscarded = 0;
 
 	private:
-		template<typename... T> size_t storeEntities(const std::tuple<T...> &) const;
+		static constexpr size_t MAX_NEW_ENTITIES = 6;
+		void storeEntities(std::span<const std::optional<Entity>>) const;
+		using NewEntities = std::array<std::optional<Entity>, MAX_NEW_ENTITIES>;
+		template<typename... T> NewEntities newEntities(const std::tuple<T...> &) const;
 
 		mutable std::flat_set<Crc32Value> existingEntities;
 		uint32_t hostnameId;

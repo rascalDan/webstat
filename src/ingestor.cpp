@@ -4,6 +4,7 @@
 #include <connection.h>
 #include <dbTypes.h>
 #include <modifycommand.h>
+#include <ranges>
 #include <scn/scan.h>
 #include <syslog.h>
 #include <utility>
@@ -55,7 +56,9 @@ namespace WebStat {
 	Ingestor::Ingestor(const std::string_view hostname, DB::ConnectionPtr dbconn) :
 		hostnameId {crc32(hostname)}, dbconn {std::move(dbconn)}
 	{
-		storeEntities(std::make_tuple(std::make_pair(hostnameId, hostname)));
+		storeEntities({
+				std::make_pair(hostnameId, hostname),
+		});
 	}
 
 	Ingestor::ScanResult
@@ -92,7 +95,11 @@ namespace WebStat {
 		if (auto result = scanLogLine(line)) {
 			linesParsed++;
 			const auto values = crc32ScanValues(result->values());
-			storeEntities(values);
+			std::optional<DB::TransactionScope> dbtx;
+			if (const auto newEnts = newEntities(values); newEnts.front()) {
+				dbtx.emplace(*dbconn);
+				storeEntities(newEnts);
+			}
 			storeLogLine(values);
 		}
 		else {
@@ -102,32 +109,42 @@ namespace WebStat {
 	}
 
 	template<typename... T>
-	size_t
-	Ingestor::storeEntities(const std::tuple<T...> & values) const
+	Ingestor::NewEntities
+	Ingestor::newEntities(const std::tuple<T...> & values) const
 	{
-		return visitSum(
-				[this]<typename X>(const X & entity) -> size_t {
-					auto insertIfReqd = [this](auto && entity) -> size_t {
-						if (existingEntities.contains(entity.first)) {
-							return 0;
+		Ingestor::NewEntities rtn;
+		auto next = rtn.begin();
+		visit(
+				[this, &next]<typename X>(const X & entity) {
+					auto addNewIfReqd = [&next, this](auto && entity) mutable {
+						if (!existingEntities.contains(entity.first)) {
+							*next++ = entity;
 						}
-						auto insert = dbconn->modify(SQL::ENTITY_INSERT, SQL::ENTITY_INSERT_OPTS);
-						insert->bindParamI(0, entity.first);
-						insert->bindParamS(1, entity.second);
-						insert->execute();
-						existingEntities.emplace(entity.first);
-						return 1;
+						return 0;
 					};
 
 					if constexpr (std::is_same_v<X, Entity>) {
-						return insertIfReqd(entity);
+						addNewIfReqd(entity);
 					}
 					else if constexpr (std::is_same_v<X, std::optional<Entity>>) {
-						entity.transform(insertIfReqd).value_or(0);
+						entity.transform(addNewIfReqd);
 					}
-					return 0;
 				},
 				values);
+		return rtn;
+	}
+
+	void
+	Ingestor::storeEntities(const std::span<const std::optional<Entity>> values) const
+	{
+		std::ranges::for_each(
+				values | std::views::take_while(&std::optional<Entity>::has_value), [this](auto && entity) {
+					auto insert = dbconn->modify(SQL::ENTITY_INSERT, SQL::ENTITY_INSERT_OPTS);
+					insert->bindParamI(0, entity->first);
+					insert->bindParamS(1, entity->second);
+					insert->execute();
+					existingEntities.emplace(entity->first);
+				});
 	}
 
 	template<typename... T>

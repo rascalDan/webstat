@@ -5,11 +5,11 @@
 namespace WebStat {
 	template<typename... T>
 	auto
-	visitSum(auto && visitor, const std::tuple<T...> & values)
+	visit(auto && visitor, const std::tuple<T...> & values)
 	{
-		return std::apply(
+		std::apply(
 				[&](auto &&... value) {
-					return (visitor(value) + ...);
+					(visitor(value), ...);
 				},
 				values);
 	}
