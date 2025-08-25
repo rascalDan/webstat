@@ -1,6 +1,7 @@
 using pkg-config ;
 import pkg-config ;
 import testing ;
+import package ;
 
 build-project src ;
 build-project test ;
@@ -35,3 +36,9 @@ project webstat : requirements
 	<toolset>gcc,<variant>debug:<cflags>-Wuseless-cast
 	<variant>release:<lto>on-thin
 	;
+
+explicit install ;
+alias install : install-exe install-data ;
+package.install install-exe : : src//webstat_logger ;
+package.install-data install-data : webstat : src/schema.sql ;
+
