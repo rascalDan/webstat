@@ -1,5 +1,7 @@
 #include "ingestor.hpp"
+#include <boost/program_options.hpp>
 #include <format>
+#include <iostream>
 #include <pq-connection.h>
 #include <sys/utsname.h>
 
@@ -20,8 +22,31 @@ namespace {
 }
 
 int
-main(int, char **)
+main(int argc, char ** argv)
 {
+	namespace po = boost::program_options;
+	po::options_description opts("WebStat logger");
+
+	// clang-format off
+	opts.add_options()
+		("help,h", "Show this help message")
+		("config,c", po::value<std::string>(), "Read config from this config file")
+		;
+	// clang-format on
+	po::variables_map optVars;
+	po::store(po::command_line_parser(argc, argv).options(opts).run(), optVars);
+	if (const auto & rcPath = optVars.find("config"); rcPath != optVars.end()) {
+		po::store(po::parse_config_file(rcPath->second.as<std::string>().c_str(), opts), optVars);
+	}
+
+	// NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks)
+	if (optVars.contains("help")) {
+		std::cout << opts << '\n';
+		return EXIT_FAILURE;
+	}
+	po::notify(optVars);
+
 	auto dbconn = std::make_shared<PQ::Connection>("dbname=webstat user=webstat");
 	WebStat::Ingestor {getHostname(false), dbconn}.ingestLog(stdin);
+	return EXIT_SUCCESS;
 }
