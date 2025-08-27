@@ -53,12 +53,13 @@ namespace WebStat {
 		}
 	}
 
-	Ingestor::Ingestor(const std::string_view hostname, DB::ConnectionPtr dbconn) :
-		hostnameId {crc32(hostname)}, dbconn {std::move(dbconn)}
+	Ingestor::Ingestor(const std::string_view hostname, DB::ConnectionPoolPtr dbpl) :
+		hostnameId {crc32(hostname)}, dbpool {std::move(dbpl)}
 	{
-		storeEntities({
-				std::make_pair(hostnameId, hostname),
-		});
+		storeEntities(dbpool->get().get(),
+				{
+						std::make_pair(hostnameId, hostname),
+				});
 	}
 
 	Ingestor::ScanResult
@@ -85,12 +86,12 @@ namespace WebStat {
 	{
 		while (auto line = scn::scan<std::string>(input, "{:[^\n]}\n")) {
 			linesRead++;
-			ingestLogLine(line->value());
+			ingestLogLine(dbpool->get().get(), line->value());
 		}
 	}
 
 	void
-	Ingestor::ingestLogLine(const std::string_view line)
+	Ingestor::ingestLogLine(DB::Connection * dbconn, const std::string_view line)
 	{
 		if (auto result = scanLogLine(line)) {
 			linesParsed++;
@@ -98,9 +99,9 @@ namespace WebStat {
 			std::optional<DB::TransactionScope> dbtx;
 			if (const auto newEnts = newEntities(values); newEnts.front()) {
 				dbtx.emplace(*dbconn);
-				storeEntities(newEnts);
+				storeEntities(dbconn, newEnts);
 			}
-			storeLogLine(values);
+			storeLogLine(dbconn, values);
 		}
 		else {
 			syslog(LOG_WARNING, "Discarded line: [%.*s]", static_cast<int>(line.length()), line.data());
@@ -135,10 +136,10 @@ namespace WebStat {
 	}
 
 	void
-	Ingestor::storeEntities(const std::span<const std::optional<Entity>> values) const
+	Ingestor::storeEntities(DB::Connection * dbconn, const std::span<const std::optional<Entity>> values) const
 	{
 		std::ranges::for_each(
-				values | std::views::take_while(&std::optional<Entity>::has_value), [this](auto && entity) {
+				values | std::views::take_while(&std::optional<Entity>::has_value), [this, dbconn](auto && entity) {
 					auto insert = dbconn->modify(SQL::ENTITY_INSERT, SQL::ENTITY_INSERT_OPTS);
 					insert->bindParamI(0, entity->first);
 					insert->bindParamS(1, entity->second);
@@ -149,7 +150,7 @@ namespace WebStat {
 
 	template<typename... T>
 	void
-	Ingestor::storeLogLine(const std::tuple<T...> & values) const
+	Ingestor::storeLogLine(DB::Connection * dbconn, const std::tuple<T...> & values) const
 	{
 		auto insert = dbconn->modify(SQL::ACCESS_LOG_INSERT, SQL::ACCESS_LOG_INSERT_OPTS);
 

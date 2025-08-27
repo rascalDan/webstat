@@ -178,5 +178,6 @@ BOOST_DATA_TEST_CASE(StoreLogLine,
 		}),
 		line)
 {
-	WebStat::Ingestor {"test-hostname", DB::MockDatabase::openConnectionTo("webstat")}.ingestLogLine(line);
+	WebStat::Ingestor {"test-hostname", std::make_shared<MockDBPool>("webstat")}.ingestLogLine(
+			DB::MockDatabase::openConnectionTo("webstat").get(), line);
 }

@@ -46,7 +46,7 @@ main(int argc, char ** argv)
 	}
 	po::notify(optVars);
 
-	auto dbconn = std::make_shared<PQ::Connection>("dbname=webstat user=webstat");
-	WebStat::Ingestor {getHostname(false), dbconn}.ingestLog(stdin);
+	auto pool = std::make_shared<DB::ConnectionPool>(1, 1, "postgresql", "dbname=webstat user=webstat");
+	WebStat::Ingestor {getHostname(false), pool}.ingestLog(stdin);
 	return EXIT_SUCCESS;
 }

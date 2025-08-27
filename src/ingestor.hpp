@@ -2,6 +2,7 @@
 
 #include "logTypes.hpp"
 #include <c++11Helpers.h>
+#include <connectionPool.h>
 #include <connection_fwd.h>
 #include <cstdio>
 #include <flat_set>
@@ -11,10 +12,10 @@
 namespace WebStat {
 	class Ingestor {
 	public:
-		Ingestor(std::string_view hostname, DB::ConnectionPtr dbconn);
+		Ingestor(std::string_view hostname, DB::ConnectionPoolPtr);
 
 		virtual ~Ingestor() = default;
-		SPECIAL_MEMBERS_DEFAULT_MOVE_NO_COPY(Ingestor);
+		SPECIAL_MEMBERS_DELETE(Ingestor);
 
 		using ScanResult = decltype(scn::scan<std::string_view, std::string_view, uint64_t, std::string_view,
 				QuotedString, QueryString, std::string_view, unsigned short, unsigned int, unsigned int, CLFString,
@@ -24,9 +25,9 @@ namespace WebStat {
 		[[nodiscard]] static ScanResult scanLogLine(std::string_view);
 
 		void ingestLog(std::FILE *);
-		void ingestLogLine(std::string_view);
+		void ingestLogLine(DB::Connection *, std::string_view);
 
-		template<typename... T> void storeLogLine(const std::tuple<T...> &) const;
+		template<typename... T> void storeLogLine(DB::Connection *, const std::tuple<T...> &) const;
 
 	protected:
 		size_t linesRead = 0;
@@ -35,12 +36,12 @@ namespace WebStat {
 
 	private:
 		static constexpr size_t MAX_NEW_ENTITIES = 6;
-		void storeEntities(std::span<const std::optional<Entity>>) const;
+		void storeEntities(DB::Connection *, std::span<const std::optional<Entity>>) const;
 		using NewEntities = std::array<std::optional<Entity>, MAX_NEW_ENTITIES>;
 		template<typename... T> NewEntities newEntities(const std::tuple<T...> &) const;
 
 		mutable std::flat_set<Crc32Value> existingEntities;
 		uint32_t hostnameId;
-		DB::ConnectionPtr dbconn;
+		DB::ConnectionPoolPtr dbpool;
 	};
 }
