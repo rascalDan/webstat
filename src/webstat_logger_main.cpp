@@ -27,10 +27,23 @@ main(int argc, char ** argv)
 	namespace po = boost::program_options;
 	po::options_description opts("WebStat logger");
 
+	std::string dbType;
+	std::string dbConnStr;
+	unsigned int dbMax = 4;
+	unsigned int dbKeep = 2;
+
 	// clang-format off
 	opts.add_options()
 		("help,h", "Show this help message")
 		("config,c", po::value<std::string>(), "Read config from this config file")
+		("db.type", po::value(&dbType)->default_value("postgresql"),
+		 "Database connection type")
+		("db.wr.connstr,D", po::value(&dbConnStr)->default_value("dbname=webstat user=webstat"),
+		 "Database connection string (read/write)")
+		("db.wr.max", po::value(&dbMax)->default_value(4),
+		 "Maximum number of concurrent write/read write DB connections")
+		("db.wr.keep", po::value(&dbKeep)->default_value(2),
+		 "Number of write/read write DB connections to keep open")
 		;
 	// clang-format on
 	po::variables_map optVars;
@@ -46,7 +59,7 @@ main(int argc, char ** argv)
 	}
 	po::notify(optVars);
 
-	auto pool = std::make_shared<DB::ConnectionPool>(1, 1, "postgresql", "dbname=webstat user=webstat");
+	auto pool = std::make_shared<DB::ConnectionPool>(dbMax, dbKeep, std::move(dbType), std::move(dbConnStr));
 	WebStat::Ingestor {getHostname(false), pool}.ingestLog(stdin);
 	return EXIT_SUCCESS;
 }
