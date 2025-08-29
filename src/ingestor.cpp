@@ -138,9 +138,9 @@ namespace WebStat {
 	void
 	Ingestor::storeEntities(DB::Connection * dbconn, const std::span<const std::optional<Entity>> values) const
 	{
-		std::ranges::for_each(
-				values | std::views::take_while(&std::optional<Entity>::has_value), [this, dbconn](auto && entity) {
-					auto insert = dbconn->modify(SQL::ENTITY_INSERT, SQL::ENTITY_INSERT_OPTS);
+		auto insert = dbconn->modify(SQL::ENTITY_INSERT, SQL::ENTITY_INSERT_OPTS);
+		std::ranges::for_each(values | std::views::take_while(&std::optional<Entity>::has_value),
+				[this, insert = insert.get()](auto && entity) {
 					insert->bindParamI(0, entity->first);
 					insert->bindParamS(1, entity->second);
 					insert->execute();
