@@ -22,8 +22,17 @@ namespace WebStat {
 		bool operator<=>(const CLFString &) const = default;
 	};
 
+	enum class EntityType : std::uint8_t {
+		Host,
+		VirtualHost,
+		Path,
+		QueryString,
+		Referrer,
+		UserAgent,
+	};
+
 	using Crc32Value = uint32_t;
-	using Entity = std::pair<Crc32Value, std::string_view>;
+	using Entity = std::tuple<Crc32Value, EntityType, std::string_view>;
 }
 
 namespace scn {

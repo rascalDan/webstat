@@ -15,7 +15,7 @@ namespace DB {
 	void
 	DB::Command::bindParam(unsigned int idx, const WebStat::Entity & entity)
 	{
-		bindParamI(idx, entity.first);
+		bindParamI(idx, std::get<0>(entity));
 	}
 }
 
@@ -29,15 +29,17 @@ namespace WebStat {
 		}
 
 		Entity
-		addCrc32(const std::string_view value)
+		toEntity(const std::string_view value, const EntityType type)
 		{
-			return {crc32(value), value};
+			return {crc32(value), type, value};
 		}
 
 		std::optional<Entity>
-		addCrc32o(const std::optional<std::string_view> value)
+		toEntityo(const std::optional<std::string_view> value, const EntityType type)
 		{
-			return value.transform(addCrc32);
+			return value.transform([type](auto && value) {
+				return toEntity(value, type);
+			});
 		}
 
 		auto
@@ -45,9 +47,11 @@ namespace WebStat {
 		{
 			return std::apply(
 					[](auto &&... value) {
-						return std::make_tuple(addCrc32(value...[0]), value...[1], value...[2], value...[3],
-								addCrc32(value...[4]), addCrc32o(value...[5]), value...[6], value...[7], value...[8],
-								value...[9], addCrc32o(value...[10]), addCrc32o(value...[11]));
+						return std::make_tuple(toEntity(value...[0], EntityType::VirtualHost), value...[1], value...[2],
+								value...[3], toEntity(value...[4], EntityType::Path),
+								toEntityo(value...[5], EntityType::QueryString), value...[6], value...[7], value...[8],
+								value...[9], toEntityo(value...[10], EntityType::Referrer),
+								toEntityo(value...[11], EntityType::UserAgent));
 					},
 					values);
 		}
@@ -58,7 +62,7 @@ namespace WebStat {
 	{
 		storeEntities(dbpool->get().get(),
 				{
-						std::make_pair(hostnameId, hostname),
+						std::make_tuple(hostnameId, EntityType::Host, hostname),
 				});
 	}
 
@@ -118,7 +122,7 @@ namespace WebStat {
 		visit(
 				[this, &next]<typename X>(const X & entity) {
 					auto addNewIfReqd = [&next, this](auto && entity) mutable {
-						if (!existingEntities.contains(entity.first)) {
+						if (!existingEntities.contains(std::get<0>(entity))) {
 							*next++ = entity;
 						}
 						return 0;
@@ -138,13 +142,17 @@ namespace WebStat {
 	void
 	Ingestor::storeEntities(DB::Connection * dbconn, const std::span<const std::optional<Entity>> values) const
 	{
+		static constexpr std::array ENTITY_TYPE_VALUES {
+				"host", "virtual_host", "path", "query_string", "referrer", "user_agent"};
+
 		auto insert = dbconn->modify(SQL::ENTITY_INSERT, SQL::ENTITY_INSERT_OPTS);
 		std::ranges::for_each(values | std::views::take_while(&std::optional<Entity>::has_value),
 				[this, insert = insert.get()](auto && entity) {
-					insert->bindParamI(0, entity->first);
-					insert->bindParamS(1, entity->second);
+					insert->bindParamI(0, std::get<0>(*entity));
+					insert->bindParamS(1, ENTITY_TYPE_VALUES[std::to_underlying(std::get<1>(*entity))]);
+					insert->bindParamS(2, std::get<2>(*entity));
 					insert->execute();
-					existingEntities.emplace(entity->first);
+					existingEntities.emplace(std::get<0>(*entity));
 				});
 	}
 
