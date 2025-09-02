@@ -11,4 +11,12 @@ namespace WebStat {
 	{
 		return DB::MockDatabase::openConnectionTo(name);
 	}
+
+	utsname
+	getTestUtsName(const std::string_view nodename)
+	{
+		utsname uts {};
+		nodename.copy(uts.nodename, sizeof(uts.nodename));
+		return uts;
+	}
 }

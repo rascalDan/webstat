@@ -7,17 +7,14 @@
 
 namespace {
 	[[nodiscard]]
-	std::string
-	getHostname(bool fqdn)
+	utsname
+	getHostDetail()
 	{
 		utsname uts {};
 		if (uname(&uts)) {
 			throw std::runtime_error(std::format("Failed to get hostname (uts: {}:{})", errno, strerror(errno)));
 		}
-		if (fqdn) {
-			return std::format("{}.{}", uts.nodename, uts.domainname);
-		}
-		return uts.nodename;
+		return uts;
 	}
 }
 
@@ -60,6 +57,6 @@ main(int argc, char ** argv)
 	po::notify(optVars);
 
 	auto pool = std::make_shared<DB::ConnectionPool>(dbMax, dbKeep, std::move(dbType), std::move(dbConnStr));
-	WebStat::Ingestor {getHostname(false), pool}.ingestLog(stdin);
+	WebStat::Ingestor {getHostDetail(), pool}.ingestLog(stdin);
 	return EXIT_SUCCESS;
 }

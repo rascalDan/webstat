@@ -3,6 +3,7 @@
 #include <connectionPool.h>
 #include <filesystem>
 #include <pq-mock.h>
+#include <sys/utsname.h>
 
 namespace WebStat {
 #define XSTR(s) STR(s)
@@ -33,4 +34,6 @@ namespace WebStat {
 	};
 
 	template<typename Out> using ParseData = std::tuple<std::string_view, Out>;
+
+	utsname getTestUtsName(std::string_view);
 }

@@ -57,13 +57,14 @@ namespace WebStat {
 		}
 	}
 
-	Ingestor::Ingestor(const std::string_view hostname, DB::ConnectionPoolPtr dbpl) :
-		hostnameId {crc32(hostname)}, dbpool {std::move(dbpl)}
+	Ingestor::Ingestor(const utsname & host, DB::ConnectionPoolPtr dbpl) :
+		hostnameId {crc32(host.nodename)}, dbpool {std::move(dbpl)}
 	{
-		storeEntities(dbpool->get().get(),
-				{
-						std::make_tuple(hostnameId, EntityType::Host, hostname),
-				});
+		auto dbconn = dbpool->get();
+		auto ins = dbconn->modify(SQL::HOST_UPSERT, SQL::HOST_UPSERT_OPTS);
+		bindMany(ins, 0, hostnameId, host.nodename, host.sysname, host.release, host.version, host.machine,
+				host.domainname);
+		ins->execute();
 	}
 
 	Ingestor::ScanResult

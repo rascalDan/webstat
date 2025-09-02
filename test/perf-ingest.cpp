@@ -102,7 +102,8 @@ namespace {
 	void
 	doIngestFile(benchmark::State & state)
 	{
-		WebStat::Ingestor ingestor {"perf-hostname", std::make_shared<WebStat::MockDBPool>("webstat")};
+		WebStat::Ingestor ingestor {
+				WebStat::getTestUtsName("perf-hostname"), std::make_shared<WebStat::MockDBPool>("webstat")};
 		for (auto loop : state) {
 			WebStat::FilePtr logFile {fopen(TMP_LOG.c_str(), "r")};
 			ingestor.ingestLog(logFile.get());

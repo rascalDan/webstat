@@ -8,11 +8,12 @@
 #include <flat_set>
 #include <scn/scan.h>
 #include <span>
+#include <sys/utsname.h>
 
 namespace WebStat {
 	class Ingestor {
 	public:
-		Ingestor(std::string_view hostname, DB::ConnectionPoolPtr);
+		Ingestor(const utsname &, DB::ConnectionPoolPtr);
 
 		virtual ~Ingestor() = default;
 		SPECIAL_MEMBERS_DELETE(Ingestor);

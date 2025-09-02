@@ -12,9 +12,13 @@ namespace WebStat::SQL {
 	const std::string ENTITY_INSERT {
 #embed "sql/entityInsert.sql"
 	};
+	const std::string HOST_UPSERT {
+#embed "sql/hostUpsert.sql"
+	};
 #define HASH_OPTS(VAR) \
 	const DB::CommandOptionsPtr VAR##_OPTS = std::make_shared<DB::CommandOptions>(std::hash<std::string> {}(VAR))
 	HASH_OPTS(ACCESS_LOG_INSERT);
 	HASH_OPTS(ENTITY_INSERT);
+	HASH_OPTS(HOST_UPSERT);
 #undef HASH_OPTS
 }
