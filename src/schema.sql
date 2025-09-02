@@ -6,6 +6,7 @@ CREATE TABLE entities (
 	id bigint NOT NULL,
 	value text NOT NULL,
 	type entity NOT NULL,
+	detail jsonb,
 
 	CONSTRAINT pk_entities PRIMARY KEY(id),
 	CONSTRAINT uni_entities_value UNIQUE(value)
