@@ -4,6 +4,7 @@ lib webstat : ingestor.cpp logTypes.cpp sql.cpp :
 	<library>..//dbppcore
 	<library>../thirdparty//scn
 	<library>..//z
+	<library>..//curl
 	: :
 	<include>.
 	;

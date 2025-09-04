@@ -7,6 +7,7 @@ build-project src ;
 build-project test ;
 
 pkg-config.import glibmm : : <name>glibmm-2.68 ;
+pkg-config.import curl : : <name>libcurl ;
 lib boost_po : : <link>shared <name>boost_program_options ;
 lib adhocutil : : <link>shared : : <include>/usr/include/adhocutil <library>glibmm ;
 lib dbppcore : : <link>shared : : <include>/usr/include/dbpp <library>adhocutil ;
