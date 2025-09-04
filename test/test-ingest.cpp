@@ -5,6 +5,7 @@
 #include "test-util.hpp"
 
 #include <ingestor.hpp>
+#include <uaLookup.hpp>
 
 namespace {
 	using namespace WebStat;
@@ -180,4 +181,17 @@ BOOST_DATA_TEST_CASE(StoreLogLine,
 {
 	WebStat::Ingestor {WebStat::getTestUtsName("test-hostname"), std::make_shared<MockDBPool>("webstat")}.ingestLogLine(
 			DB::MockDatabase::openConnectionTo("webstat").get(), line);
+}
+
+BOOST_AUTO_TEST_CASE(FetchRealUserAgentDetail, *boost::unit_test::disabled())
+{
+	const auto uaDetail = WebStat::getUserAgentDetail(
+			R"(Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36)");
+
+	BOOST_TEST_CONTEXT(uaDetail) {
+		BOOST_CHECK(uaDetail.starts_with("{"));
+		BOOST_CHECK(uaDetail.ends_with("}"));
+		BOOST_CHECK(uaDetail.contains(R"("agent_type":)"));
+		BOOST_CHECK(uaDetail.contains(R"("os_type":)"));
+	}
 }
