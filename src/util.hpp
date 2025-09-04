@@ -4,10 +4,13 @@
 #include <tuple>
 
 namespace WebStat {
-	template<auto Deleter>
-	using DeleteWith = decltype([](auto obj) {
-		return Deleter(obj);
-	});
+	template<auto Deleter> struct DeleteWith {
+		auto
+		operator()(auto obj)
+		{
+			return Deleter(obj);
+		}
+	};
 
 	template<typename... T>
 	auto
