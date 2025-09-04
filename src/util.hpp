@@ -4,6 +4,11 @@
 #include <tuple>
 
 namespace WebStat {
+	template<auto Deleter>
+	using DeleteWith = decltype([](auto obj) {
+		return Deleter(obj);
+	});
+
 	template<typename... T>
 	auto
 	visit(auto && visitor, const std::tuple<T...> & values)

@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <pq-mock.h>
 #include <sys/utsname.h>
+#include <util.hpp>
 
 namespace WebStat {
 #define XSTR(s) STR(s)
@@ -12,10 +13,6 @@ namespace WebStat {
 #undef XSTR
 #undef STR
 
-	template<auto Deleter>
-	using DeleteWith = decltype([](auto obj) {
-		return Deleter(obj);
-	});
 	using FilePtr = std::unique_ptr<std::FILE, DeleteWith<&fclose>>;
 
 	struct MockDB : public DB::PluginMock<PQ::Mock> {
