@@ -1,6 +1,8 @@
 #pragma once
 
+#include "util.hpp"
 #include <curl/curl.h>
+#include <memory>
 #include <stdexcept>
 #include <string>
 
@@ -12,5 +14,21 @@ namespace WebStat {
 		CURLcode code;
 	};
 
-	std::string getUserAgentDetail(std::string_view uas, const char * baseUrl = "https://useragentstring.com");
+	using CurlPtr = std::unique_ptr<CURL, DeleteWith<&curl_easy_cleanup>>;
+	using CurlMimePtr = std::unique_ptr<curl_mime, DeleteWith<&curl_mime_free>>;
+	using CurlErrorBuf = std::array<char, CURL_ERROR_SIZE>;
+
+	class CurlOperation {
+	public:
+		CurlOperation();
+		void addForm(const char * name, std::string_view data);
+
+		CurlPtr hnd;
+		CurlMimePtr mime;
+		CurlErrorBuf err;
+		std::string result;
+	};
+
+	std::unique_ptr<CurlOperation> curlGetUserAgentDetail(
+			std::string_view uas, const char * baseUrl = "https://useragentstring.com");
 }

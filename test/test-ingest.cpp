@@ -185,13 +185,15 @@ BOOST_DATA_TEST_CASE(StoreLogLine,
 
 BOOST_AUTO_TEST_CASE(FetchRealUserAgentDetail, *boost::unit_test::disabled())
 {
-	const auto uaDetail = WebStat::getUserAgentDetail(
+	const auto uaDetailReq = WebStat::curlGetUserAgentDetail(
 			R"(Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36)");
+	BOOST_REQUIRE(uaDetailReq);
+	BOOST_REQUIRE_EQUAL(CURLE_OK, curl_easy_perform(uaDetailReq->hnd.get()));
 
-	BOOST_TEST_CONTEXT(uaDetail) {
-		BOOST_CHECK(uaDetail.starts_with("{"));
-		BOOST_CHECK(uaDetail.ends_with("}"));
-		BOOST_CHECK(uaDetail.contains(R"("agent_type":)"));
-		BOOST_CHECK(uaDetail.contains(R"("os_type":)"));
+	BOOST_TEST_CONTEXT(uaDetailReq->result) {
+		BOOST_CHECK(uaDetailReq->result.starts_with("{"));
+		BOOST_CHECK(uaDetailReq->result.ends_with("}"));
+		BOOST_CHECK(uaDetailReq->result.contains(R"("agent_type":)"));
+		BOOST_CHECK(uaDetailReq->result.contains(R"("os_type":)"));
 	}
 }
