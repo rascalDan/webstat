@@ -195,6 +195,17 @@ BOOST_DATA_TEST_CASE(StoreLogLine,
 	BOOST_CHECK_EQUAL(linesDiscarded, 0);
 }
 
+BOOST_AUTO_TEST_CASE(StoreLog, *boost::unit_test::depends_on("I/StoreLogLine"))
+{
+	WebStat::LogFile log {"/tmp/store-log-fixture.log", 10};
+	WebStat::FilePtr input {fopen(log.path.c_str(), "r")};
+	BOOST_REQUIRE(input);
+	ingestLog(input.get());
+	BOOST_CHECK_EQUAL(linesRead, 10);
+	BOOST_CHECK_EQUAL(linesParsed, 10);
+	BOOST_CHECK_EQUAL(linesDiscarded, 0);
+}
+
 BOOST_AUTO_TEST_SUITE_END();
 
 BOOST_AUTO_TEST_CASE(FetchRealUserAgentDetail, *boost::unit_test::disabled())
