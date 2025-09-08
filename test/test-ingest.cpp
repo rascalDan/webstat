@@ -170,6 +170,16 @@ BOOST_DATA_TEST_CASE(ExtractFields,
 	BOOST_CHECK_EQUAL(result->values(), expected);
 }
 
+class TestIngestor : public WebStat::Ingestor {
+public:
+	TestIngestor() :
+		WebStat::Ingestor {WebStat::getTestUtsName("test-hostname"), std::make_shared<MockDBPool>("webstat")}
+	{
+	}
+};
+
+BOOST_FIXTURE_TEST_SUITE(I, TestIngestor);
+
 BOOST_TEST_DECORATOR(*boost::unit_test::depends_on("ExtractFields"))
 
 BOOST_DATA_TEST_CASE(StoreLogLine,
@@ -179,9 +189,13 @@ BOOST_DATA_TEST_CASE(StoreLogLine,
 		}),
 		line)
 {
-	WebStat::Ingestor {WebStat::getTestUtsName("test-hostname"), std::make_shared<MockDBPool>("webstat")}.ingestLogLine(
-			DB::MockDatabase::openConnectionTo("webstat").get(), line);
+	ingestLogLine(DB::MockDatabase::openConnectionTo("webstat").get(), line);
+	BOOST_CHECK_EQUAL(linesRead, 0);
+	BOOST_CHECK_EQUAL(linesParsed, 1);
+	BOOST_CHECK_EQUAL(linesDiscarded, 0);
 }
+
+BOOST_AUTO_TEST_SUITE_END();
 
 BOOST_AUTO_TEST_CASE(FetchRealUserAgentDetail, *boost::unit_test::disabled())
 {
