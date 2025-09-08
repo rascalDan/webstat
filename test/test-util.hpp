@@ -33,4 +33,12 @@ namespace WebStat {
 	template<typename Out> using ParseData = std::tuple<std::string_view, Out>;
 
 	utsname getTestUtsName(std::string_view);
+
+	struct LogFile {
+		LogFile(std::filesystem::path where, size_t entries);
+		~LogFile();
+		SPECIAL_MEMBERS_DELETE(LogFile);
+
+		const std::filesystem::path path;
+	};
 }
