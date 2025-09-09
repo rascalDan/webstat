@@ -5,10 +5,12 @@ lib stdc++fs ;
 
 path-constant src : ../src ;
 path-constant test : . ;
+path-constant fixtures : fixtures ;
 
 project WebStat-Testing : requirements
 	<define>SRC=\"$(src)\"
 	<define>TEST=\"$(test)\"
+	<define>FIXTURES=\"$(fixtures)\"
 	<library>$(src)//webstat
 	;
 

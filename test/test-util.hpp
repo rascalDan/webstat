@@ -10,6 +10,9 @@ namespace WebStat {
 #define XSTR(s) STR(s)
 #define STR(s) #s
 	inline const std::filesystem::path SRC_DIR(XSTR(SRC));
+	inline const std::filesystem::path TEST_DIR(XSTR(TEST));
+	inline const std::filesystem::path FIXTURE_DIR(XSTR(FIXTURES));
+	inline const std::string FIXTURE_URL_BASE = "file://" + std::filesystem::canonical(FIXTURE_DIR).string();
 #undef XSTR
 #undef STR
 
