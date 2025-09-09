@@ -1,6 +1,7 @@
 #pragma once
 
 #include "logTypes.hpp"
+#include "uaLookup.hpp"
 #include <c++11Helpers.h>
 #include <connectionPool.h>
 #include <connection_fwd.h>
@@ -44,5 +45,6 @@ namespace WebStat {
 		mutable std::flat_set<Crc32Value> existingEntities;
 		uint32_t hostnameId;
 		DB::ConnectionPoolPtr dbpool;
+		CurlMultiPtr curl;
 	};
 }

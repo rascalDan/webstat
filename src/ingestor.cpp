@@ -58,7 +58,7 @@ namespace WebStat {
 	}
 
 	Ingestor::Ingestor(const utsname & host, DB::ConnectionPoolPtr dbpl) :
-		hostnameId {crc32(host.nodename)}, dbpool {std::move(dbpl)}
+		hostnameId {crc32(host.nodename)}, dbpool {std::move(dbpl)}, curl {curl_multi_init()}
 	{
 		auto dbconn = dbpool->get();
 		auto ins = dbconn->modify(SQL::HOST_UPSERT, SQL::HOST_UPSERT_OPTS);
@@ -89,9 +89,18 @@ namespace WebStat {
 	void
 	Ingestor::ingestLog(std::FILE * input)
 	{
-		while (auto line = scn::scan<std::string>(input, "{:[^\n]}\n")) {
-			linesRead++;
-			ingestLogLine(dbpool->get().get(), line->value());
+		curl_waitfd logIn {.fd = fileno(input), .events = CURL_WAIT_POLLIN, .revents = 0};
+
+		while (curl_multi_poll(curl.get(), &logIn, 1, INT_MAX, nullptr) == CURLM_OK) {
+			if (logIn.revents) {
+				if (auto line = scn::scan<std::string>(input, "{:[^\n]}\n")) {
+					linesRead++;
+					ingestLogLine(dbpool->get().get(), line->value());
+				}
+				else {
+					break;
+				}
+			}
 		}
 	}
 

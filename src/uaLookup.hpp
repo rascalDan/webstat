@@ -17,6 +17,7 @@ namespace WebStat {
 	using CurlPtr = std::unique_ptr<CURL, DeleteWith<&curl_easy_cleanup>>;
 	using CurlMimePtr = std::unique_ptr<curl_mime, DeleteWith<&curl_mime_free>>;
 	using CurlErrorBuf = std::array<char, CURL_ERROR_SIZE>;
+	using CurlMultiPtr = std::unique_ptr<CURLM, DeleteWith<&curl_multi_cleanup>>;
 
 	class CurlOperation {
 	public:
