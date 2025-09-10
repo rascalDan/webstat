@@ -156,11 +156,10 @@ namespace WebStat {
 				"host", "virtual_host", "path", "query_string", "referrer", "user_agent"};
 
 		auto insert = dbconn->modify(SQL::ENTITY_INSERT, SQL::ENTITY_INSERT_OPTS);
-		std::ranges::for_each(values | std::views::take_while(&std::optional<Entity>::has_value),
-				[this, insert = insert.get()](auto && entity) {
-					insert->bindParamI(0, std::get<0>(*entity));
-					insert->bindParamS(1, ENTITY_TYPE_VALUES[std::to_underlying(std::get<1>(*entity))]);
-					insert->bindParamS(2, std::get<2>(*entity));
+		std::ranges::for_each(
+				values | std::views::take_while(&std::optional<Entity>::has_value), [this, &insert](auto && entity) {
+					const auto & [entityId, type, value] = *entity;
+					bindMany(insert, 0, entityId, ENTITY_TYPE_VALUES[std::to_underlying(type)], value);
 					insert->execute();
 					existingEntities.emplace(std::get<0>(*entity));
 				});
