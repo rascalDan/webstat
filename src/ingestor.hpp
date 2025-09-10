@@ -31,6 +31,8 @@ namespace WebStat {
 
 		template<typename... T> void storeLogLine(DB::Connection *, const std::tuple<T...> &) const;
 
+		std::string userAgentAPI = "https://useragentstring.com";
+
 	protected:
 		size_t linesRead = 0;
 		size_t linesParsed = 0;

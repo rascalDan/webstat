@@ -30,6 +30,5 @@ namespace WebStat {
 		std::string result;
 	};
 
-	std::unique_ptr<CurlOperation> curlGetUserAgentDetail(
-			std::string_view uas, const char * baseUrl = "https://useragentstring.com");
+	std::unique_ptr<CurlOperation> curlGetUserAgentDetail(std::string_view uas, const char * baseUrl);
 }
