@@ -43,10 +43,13 @@ namespace WebStat {
 		void storeEntities(DB::Connection *, std::span<const std::optional<Entity>>) const;
 		using NewEntities = std::array<std::optional<Entity>, MAX_NEW_ENTITIES>;
 		template<typename... T> NewEntities newEntities(const std::tuple<T...> &) const;
+		void handleCurlOperations();
 
+		using CurlOperations = std::map<CURL *, std::unique_ptr<CurlOperation>>;
 		mutable std::flat_set<Crc32Value> existingEntities;
 		uint32_t hostnameId;
 		DB::ConnectionPoolPtr dbpool;
 		CurlMultiPtr curl;
+		mutable CurlOperations curlOperations;
 	};
 }

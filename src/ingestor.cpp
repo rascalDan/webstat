@@ -87,6 +87,26 @@ namespace WebStat {
 	}
 
 	void
+	Ingestor::handleCurlOperations()
+	{
+		int remaining {};
+		curl_multi_perform(curl.get(), nullptr);
+		while (auto msg = curl_multi_info_read(curl.get(), &remaining)) {
+			if (msg->msg == CURLMSG_DONE) {
+				if (auto operationItr = curlOperations.find(msg->easy_handle); operationItr != curlOperations.end()) {
+					if (msg->data.result == CURLE_OK) { }
+					curl_multi_remove_handle(curl.get(), msg->easy_handle);
+					curlOperations.erase(operationItr);
+				}
+				else {
+					curlOperations.erase(msg->easy_handle);
+					std::println(std::cerr, "Failed to lookup CurlOperation");
+				}
+			}
+		}
+	}
+
+	void
 	Ingestor::ingestLog(std::FILE * input)
 	{
 		curl_waitfd logIn {.fd = fileno(input), .events = CURL_WAIT_POLLIN, .revents = 0};
@@ -101,6 +121,12 @@ namespace WebStat {
 					break;
 				}
 			}
+			else if (!curlOperations.empty()) {
+				handleCurlOperations();
+			}
+		}
+		while (!curlOperations.empty() && curl_multi_poll(curl.get(), nullptr, 0, INT_MAX, nullptr) == CURLM_OK) {
+			handleCurlOperations();
 		}
 	}
 
