@@ -209,7 +209,7 @@ BOOST_AUTO_TEST_CASE(StoreLog, *boost::unit_test::depends_on("I/StoreLogLine"))
 
 BOOST_AUTO_TEST_CASE(FetchMockUserAgentDetail)
 {
-	const auto uaDetailReq = WebStat::curlGetUserAgentDetail(
+	const auto uaDetailReq = WebStat::curlGetUserAgentDetail(0,
 			R"(Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36)",
 			userAgentAPI.c_str());
 	BOOST_REQUIRE(uaDetailReq);
@@ -226,7 +226,7 @@ BOOST_AUTO_TEST_SUITE_END();
 
 BOOST_AUTO_TEST_CASE(FetchRealUserAgentDetail, *boost::unit_test::disabled())
 {
-	const auto uaDetailReq = WebStat::curlGetUserAgentDetail(
+	const auto uaDetailReq = WebStat::curlGetUserAgentDetail(0,
 			R"(Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36)",
 			"http://useragentstring.com");
 	BOOST_REQUIRE(uaDetailReq);

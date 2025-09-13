@@ -1,7 +1,7 @@
 #pragma once
 
+#include "curlOp.hpp"
 #include "logTypes.hpp"
-#include "uaLookup.hpp"
 #include <c++11Helpers.h>
 #include <connectionPool.h>
 #include <connection_fwd.h>

@@ -1,5 +1,6 @@
 #include "ingestor.hpp"
 #include "sql.hpp"
+#include "uaLookup.hpp"
 #include "util.hpp"
 #include <connection.h>
 #include <dbTypes.h>
@@ -94,7 +95,12 @@ namespace WebStat {
 		while (auto msg = curl_multi_info_read(curl.get(), &remaining)) {
 			if (msg->msg == CURLMSG_DONE) {
 				if (auto operationItr = curlOperations.find(msg->easy_handle); operationItr != curlOperations.end()) {
-					if (msg->data.result == CURLE_OK) { }
+					if (msg->data.result == CURLE_OK) {
+						operationItr->second->whenComplete(dbpool->get().get());
+					}
+					else {
+						operationItr->second->onError(dbpool->get().get());
+					}
 					curl_multi_remove_handle(curl.get(), msg->easy_handle);
 					curlOperations.erase(operationItr);
 				}
@@ -186,7 +192,18 @@ namespace WebStat {
 				values | std::views::take_while(&std::optional<Entity>::has_value), [this, &insert](auto && entity) {
 					const auto & [entityId, type, value] = *entity;
 					bindMany(insert, 0, entityId, ENTITY_TYPE_VALUES[std::to_underlying(type)], value);
-					insert->execute();
+					if (insert->execute() > 0) {
+						switch (type) {
+							case EntityType::UserAgent: {
+								auto curlOp = curlGetUserAgentDetail(entityId, value, userAgentAPI.c_str());
+								auto added = curlOperations.emplace(curlOp->hnd.get(), std::move(curlOp));
+								curl_multi_add_handle(curl.get(), added.first->first);
+								break;
+							}
+							default:
+								break;
+						}
+					}
 					existingEntities.emplace(std::get<0>(*entity));
 				});
 	}
