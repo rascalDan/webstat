@@ -57,6 +57,12 @@ main(int argc, char ** argv)
 	po::notify(optVars);
 
 	auto pool = std::make_shared<DB::ConnectionPool>(dbMax, dbKeep, std::move(dbType), std::move(dbConnStr));
-	WebStat::Ingestor {getHostDetail(), pool}.ingestLog(stdin);
-	return EXIT_SUCCESS;
+	try {
+		WebStat::Ingestor {getHostDetail(), pool}.ingestLog(stdin);
+		return EXIT_SUCCESS;
+	}
+	catch (const std::exception & excp) {
+		std::println(std::cerr, "Unhandled error: {}", excp.what());
+		return EXIT_FAILURE;
+	}
 }
