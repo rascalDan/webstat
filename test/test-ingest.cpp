@@ -3,6 +3,7 @@
 #include <boost/test/unit_test.hpp>
 
 #include "test-util.hpp"
+#include <selectcommandUtil.impl.h>
 
 #include <ingestor.hpp>
 #include <uaLookup.hpp>
@@ -29,9 +30,30 @@ namespace std {
 	{
 		return std::apply(
 				[&strm](auto &&... elems) -> decltype(auto) {
-					return ((strm << elems << '\n'), ...);
+					return ((strm << '{' << elems << ", "), ...) << '}';
 				},
 				values);
+	}
+
+	template<typename... T>
+	ostream &
+	operator<<(ostream & strm, const DB::Row<T...> & row)
+	{
+		return [&]<size_t... Field>(std::integer_sequence<size_t, Field...>) -> decltype(auto) {
+			return ((strm << '{' << row.template get<Field>() << ", "), ...) << '}';
+		}(std::make_integer_sequence<size_t, sizeof...(T)>());
+	}
+}
+
+namespace DB {
+	template<typename... T>
+	bool
+	operator!=(const Row<T...> & row, const std::tuple<T...> & expected)
+	{
+		return [&]<size_t... Field>(std::integer_sequence<size_t, Field...>) {
+			return std::make_tuple(row.template get<Field>()...);
+		}(std::make_integer_sequence<size_t, sizeof...(T)>())
+				!= expected;
 	}
 }
 
@@ -220,6 +242,18 @@ BOOST_AUTO_TEST_CASE(FetchMockUserAgentDetail)
 		BOOST_CHECK(uaDetailReq->result.contains(R"("os_type":)"));
 		BOOST_CHECK(uaDetailReq->result.contains(R"("Chrome")"));
 	}
+}
+
+BOOST_AUTO_TEST_CASE(DiscardUnparsable)
+{
+	BOOST_REQUIRE_NO_THROW(ingestLogLine("does not parse"));
+	auto dbconn = dbpool->get();
+	auto select = dbconn->select("SELECT id, value FROM entities WHERE type = 'unparsable_line'");
+	constexpr std::array<std::tuple<uint64_t, std::string_view>, 1> EXPECTED {{
+			{1664299262, "does not parse"},
+	}};
+	auto rows = select->as<uint64_t, std::string_view>();
+	BOOST_CHECK_EQUAL_COLLECTIONS(rows.begin(), rows.end(), EXPECTED.begin(), EXPECTED.end());
 }
 
 BOOST_AUTO_TEST_SUITE_END();

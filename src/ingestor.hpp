@@ -27,6 +27,7 @@ namespace WebStat {
 		[[nodiscard]] static ScanResult scanLogLine(std::string_view);
 
 		void ingestLog(std::FILE *);
+		void ingestLogLine(std::string_view);
 		void ingestLogLine(DB::Connection *, std::string_view);
 
 		template<typename... T> void storeLogLine(DB::Connection *, const std::tuple<T...> &) const;

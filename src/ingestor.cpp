@@ -121,7 +121,7 @@ namespace WebStat {
 			if (logIn.revents) {
 				if (auto line = scn::scan<std::string>(input, "{:[^\n]}\n")) {
 					linesRead++;
-					ingestLogLine(dbpool->get().get(), line->value());
+					ingestLogLine(line->value());
 				}
 				else {
 					break;
@@ -134,6 +134,12 @@ namespace WebStat {
 		while (!curlOperations.empty() && curl_multi_poll(curl.get(), nullptr, 0, INT_MAX, nullptr) == CURLM_OK) {
 			handleCurlOperations();
 		}
+	}
+
+	void
+	Ingestor::ingestLogLine(const std::string_view line)
+	{
+		ingestLogLine(dbpool->get().get(), line);
 	}
 
 	void
@@ -150,8 +156,9 @@ namespace WebStat {
 			storeLogLine(dbconn, values);
 		}
 		else {
-			syslog(LOG_WARNING, "Discarded line: [%.*s]", static_cast<int>(line.length()), line.data());
 			linesDiscarded++;
+			const auto unparsableLine = toEntity(line, EntityType::UnparsableLine);
+			storeEntities(dbconn, {unparsableLine});
 		}
 	}
 
@@ -185,7 +192,7 @@ namespace WebStat {
 	Ingestor::storeEntities(DB::Connection * dbconn, const std::span<const std::optional<Entity>> values) const
 	{
 		static constexpr std::array ENTITY_TYPE_VALUES {
-				"host", "virtual_host", "path", "query_string", "referrer", "user_agent"};
+				"host", "virtual_host", "path", "query_string", "referrer", "user_agent", "unparsable_line"};
 
 		auto insert = dbconn->modify(SQL::ENTITY_INSERT, SQL::ENTITY_INSERT_OPTS);
 		std::ranges::for_each(

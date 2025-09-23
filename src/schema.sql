@@ -1,6 +1,6 @@
 CREATE TYPE http_verb AS ENUM('GET', 'HEAD', 'OPTIONS', 'TRACE', 'PUT', 'DELETE', 'POST', 'PATCH', 'CONNECT');
 CREATE TYPE protocol AS ENUM('HTTP/1.0', 'HTTP/1.1', 'HTTP/1.2', 'HTTP/1.3', 'HTTP/2.0', 'HTTPS/3.0');
-CREATE TYPE entity AS ENUM('host', 'virtual_host', 'path', 'query_string', 'referrer', 'user_agent');
+CREATE TYPE entity AS ENUM('host', 'virtual_host', 'path', 'query_string', 'referrer', 'user_agent', 'unparsable_line');
 
 CREATE TABLE entities (
 	id bigint NOT NULL,
