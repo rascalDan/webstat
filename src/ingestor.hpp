@@ -34,6 +34,8 @@ namespace WebStat {
 		std::string userAgentAPI = "https://useragentstring.com";
 
 	protected:
+		DB::ConnectionPoolPtr dbpool;
+
 		size_t linesRead = 0;
 		size_t linesParsed = 0;
 		size_t linesDiscarded = 0;
@@ -48,7 +50,6 @@ namespace WebStat {
 		using CurlOperations = std::map<CURL *, std::unique_ptr<CurlOperation>>;
 		mutable std::flat_set<Crc32Value> existingEntities;
 		uint32_t hostnameId;
-		DB::ConnectionPoolPtr dbpool;
 		CurlMultiPtr curl;
 		mutable CurlOperations curlOperations;
 	};

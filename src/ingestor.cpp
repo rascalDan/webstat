@@ -59,7 +59,7 @@ namespace WebStat {
 	}
 
 	Ingestor::Ingestor(const utsname & host, DB::ConnectionPoolPtr dbpl) :
-		hostnameId {crc32(host.nodename)}, dbpool {std::move(dbpl)}, curl {curl_multi_init()}
+		dbpool {std::move(dbpl)}, hostnameId {crc32(host.nodename)}, curl {curl_multi_init()}
 	{
 		auto dbconn = dbpool->get();
 		auto ins = dbconn->modify(SQL::HOST_UPSERT, SQL::HOST_UPSERT_OPTS);
