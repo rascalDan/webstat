@@ -2,6 +2,7 @@
 
 #include "curlOp.hpp"
 #include "logTypes.hpp"
+#include "settings.hpp"
 #include <c++11Helpers.h>
 #include <connectionPool.h>
 #include <connection_fwd.h>
@@ -12,9 +13,17 @@
 #include <sys/utsname.h>
 
 namespace WebStat {
+	struct IngestorSettings : Settings {
+		std::string dbConnStr = "dbname=webstat user=webstat";
+		std::string userAgentAPI = "https://useragentstring.com";
+		unsigned int dbMax = 4;
+		unsigned int dbKeep = 2;
+	};
+
 	class Ingestor {
 	public:
-		Ingestor(const utsname &, DB::ConnectionPoolPtr);
+		Ingestor(const utsname &, IngestorSettings);
+		Ingestor(const utsname &, DB::ConnectionPoolPtr, IngestorSettings);
 
 		virtual ~Ingestor() = default;
 		SPECIAL_MEMBERS_DELETE(Ingestor);
@@ -32,7 +41,7 @@ namespace WebStat {
 
 		template<typename... T> void storeLogLine(DB::Connection *, const std::tuple<T...> &) const;
 
-		std::string userAgentAPI = "https://useragentstring.com";
+		IngestorSettings settings;
 
 	protected:
 		DB::ConnectionPoolPtr dbpool;

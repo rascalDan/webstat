@@ -58,8 +58,17 @@ namespace WebStat {
 		}
 	}
 
-	Ingestor::Ingestor(const utsname & host, DB::ConnectionPoolPtr dbpl) :
-		dbpool {std::move(dbpl)}, hostnameId {crc32(host.nodename)}, curl {curl_multi_init()}
+	Ingestor::Ingestor(const utsname & host, IngestorSettings settings) :
+		Ingestor {host,
+				std::make_shared<DB::ConnectionPool>(
+						settings.dbMax, settings.dbKeep, settings.dbType, settings.dbConnStr),
+				std::move(settings)}
+	{
+	}
+
+	Ingestor::Ingestor(const utsname & host, DB::ConnectionPoolPtr dbpl, IngestorSettings settings) :
+		settings {std::move(settings)}, dbpool {std::move(dbpl)}, hostnameId {crc32(host.nodename)},
+		curl {curl_multi_init()}
 	{
 		auto dbconn = dbpool->get();
 		auto ins = dbconn->modify(SQL::HOST_UPSERT, SQL::HOST_UPSERT_OPTS);
@@ -202,7 +211,7 @@ namespace WebStat {
 					if (insert->execute() > 0) {
 						switch (type) {
 							case EntityType::UserAgent: {
-								auto curlOp = curlGetUserAgentDetail(entityId, value, userAgentAPI.c_str());
+								auto curlOp = curlGetUserAgentDetail(entityId, value, settings.userAgentAPI.c_str());
 								auto added = curlOperations.emplace(curlOp->hnd.get(), std::move(curlOp));
 								curl_multi_add_handle(curl.get(), added.first->first);
 								break;

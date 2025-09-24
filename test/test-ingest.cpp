@@ -195,9 +195,11 @@ BOOST_DATA_TEST_CASE(ExtractFields,
 class TestIngestor : public WebStat::Ingestor {
 public:
 	TestIngestor() :
-		WebStat::Ingestor {WebStat::getTestUtsName("test-hostname"), std::make_shared<MockDBPool>("webstat")}
+		WebStat::Ingestor {WebStat::getTestUtsName("test-hostname"), std::make_shared<MockDBPool>("webstat"),
+				{
+						.userAgentAPI = FIXTURE_URL_BASE + "/userAgent.json",
+				}}
 	{
-		userAgentAPI = FIXTURE_URL_BASE + "/userAgent.json";
 	}
 };
 
@@ -233,7 +235,7 @@ BOOST_AUTO_TEST_CASE(FetchMockUserAgentDetail)
 {
 	const auto uaDetailReq = WebStat::curlGetUserAgentDetail(0,
 			R"(Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36)",
-			userAgentAPI.c_str());
+			settings.userAgentAPI.c_str());
 	BOOST_REQUIRE(uaDetailReq);
 	BOOST_REQUIRE_EQUAL(CURLE_OK, curl_easy_perform(uaDetailReq->hnd.get()));
 

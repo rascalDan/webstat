@@ -24,22 +24,19 @@ main(int argc, char ** argv)
 	namespace po = boost::program_options;
 	po::options_description opts("WebStat logger");
 
-	std::string dbType;
-	std::string dbConnStr;
-	unsigned int dbMax = 4;
-	unsigned int dbKeep = 2;
+	WebStat::IngestorSettings settings;
 
 	// clang-format off
 	opts.add_options()
 		("help,h", "Show this help message")
 		("config,c", po::value<std::string>(), "Read config from this config file")
-		("db.type", po::value(&dbType)->default_value("postgresql"),
+		("db.type", po::value(&settings.dbType)->default_value(settings.dbType),
 		 "Database connection type")
-		("db.wr.connstr,D", po::value(&dbConnStr)->default_value("dbname=webstat user=webstat"),
+		("db.wr.connstr,D", po::value(&settings.dbConnStr)->default_value(settings.dbConnStr),
 		 "Database connection string (read/write)")
-		("db.wr.max", po::value(&dbMax)->default_value(4),
+		("db.wr.max", po::value(&settings.dbMax)->default_value(settings.dbMax),
 		 "Maximum number of concurrent write/read write DB connections")
-		("db.wr.keep", po::value(&dbKeep)->default_value(2),
+		("db.wr.keep", po::value(&settings.dbKeep)->default_value(settings.dbKeep),
 		 "Number of write/read write DB connections to keep open")
 		;
 	// clang-format on
@@ -56,9 +53,8 @@ main(int argc, char ** argv)
 	}
 	po::notify(optVars);
 
-	auto pool = std::make_shared<DB::ConnectionPool>(dbMax, dbKeep, std::move(dbType), std::move(dbConnStr));
 	try {
-		WebStat::Ingestor {getHostDetail(), pool}.ingestLog(stdin);
+		WebStat::Ingestor {getHostDetail(), std::move(settings)}.ingestLog(stdin);
 		return EXIT_SUCCESS;
 	}
 	catch (const std::exception & excp) {

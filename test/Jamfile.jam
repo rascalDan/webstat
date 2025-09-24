@@ -12,6 +12,7 @@ project WebStat-Testing : requirements
 	<define>TEST=\"$(test)\"
 	<define>FIXTURES=\"$(fixtures)\"
 	<library>$(src)//webstat
+	<toolset>gcc,<variant>debug:<cflags>-Wno-missing-field-initializers
 	;
 
 lib test-util :
