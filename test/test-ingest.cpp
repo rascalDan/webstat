@@ -198,9 +198,18 @@ public:
 		WebStat::Ingestor {WebStat::getTestUtsName("test-hostname"), std::make_shared<MockDBPool>("webstat"),
 				{
 						.userAgentAPI = FIXTURE_URL_BASE + "/userAgent.json",
+						.fallbackDir = std::format("/tmp/webstat-{}", getpid()),
 				}}
 	{
+		std::filesystem::create_directories(settings.fallbackDir);
 	}
+
+	~TestIngestor() override
+	{
+		std::filesystem::remove_all(settings.fallbackDir);
+	}
+
+	SPECIAL_MEMBERS_DELETE(TestIngestor);
 };
 
 BOOST_FIXTURE_TEST_SUITE(I, TestIngestor);
@@ -229,6 +238,25 @@ BOOST_AUTO_TEST_CASE(StoreLog, *boost::unit_test::depends_on("I/StoreLogLine"))
 	BOOST_CHECK_EQUAL(linesRead, 10);
 	BOOST_CHECK_EQUAL(linesParsed, 10);
 	BOOST_CHECK_EQUAL(linesDiscarded, 0);
+}
+
+BOOST_AUTO_TEST_CASE(ParkLogLine)
+{
+	parkLogLine(LOGLINE1);
+	BOOST_CHECK_EQUAL(linesParked, 1);
+	const auto path = settings.fallbackDir / "parked-3377916038.log";
+	BOOST_TEST_INFO(path);
+	BOOST_REQUIRE(std::filesystem::exists(path));
+	BOOST_CHECK_EQUAL(std::filesystem::file_size(path), LOGLINE1.length());
+}
+
+BOOST_TEST_DECORATOR(*boost::unit_test::depends_on("I/ParkLogLine"))
+
+BOOST_AUTO_TEST_CASE(ParkLogLineOnError)
+{
+	BOOST_REQUIRE_NO_THROW(dbpool->get()->execute("SET search_path = ''"));
+	BOOST_REQUIRE_NO_THROW(ingestLogLine(LOGLINE1));
+	BOOST_CHECK_EQUAL(linesParked, 1);
 }
 
 BOOST_AUTO_TEST_CASE(FetchMockUserAgentDetail)

@@ -38,6 +38,8 @@ main(int argc, char ** argv)
 		 "Maximum number of concurrent write/read write DB connections")
 		("db.wr.keep", po::value(&settings.dbKeep)->default_value(settings.dbKeep),
 		 "Number of write/read write DB connections to keep open")
+		("fallback.dir", po::value(&settings.fallbackDir)->default_value(settings.fallbackDir),
+		 "Path to write access logs to when the database is unavailable")
 		;
 	// clang-format on
 	po::variables_map optVars;

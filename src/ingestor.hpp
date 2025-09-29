@@ -16,6 +16,7 @@ namespace WebStat {
 	struct IngestorSettings : Settings {
 		std::string dbConnStr = "dbname=webstat user=webstat";
 		std::string userAgentAPI = "https://useragentstring.com";
+		std::filesystem::path fallbackDir = "/var/log/webstat";
 		unsigned int dbMax = 4;
 		unsigned int dbKeep = 2;
 	};
@@ -38,6 +39,7 @@ namespace WebStat {
 		void ingestLog(std::FILE *);
 		void ingestLogLine(std::string_view);
 		void ingestLogLine(DB::Connection *, std::string_view);
+		void parkLogLine(std::string_view);
 
 		template<typename... T> void storeLogLine(DB::Connection *, const std::tuple<T...> &) const;
 
@@ -49,6 +51,7 @@ namespace WebStat {
 		size_t linesRead = 0;
 		size_t linesParsed = 0;
 		size_t linesDiscarded = 0;
+		size_t linesParked = 0;
 
 	private:
 		static constexpr size_t MAX_NEW_ENTITIES = 6;

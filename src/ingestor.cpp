@@ -4,6 +4,7 @@
 #include "util.hpp"
 #include <connection.h>
 #include <dbTypes.h>
+#include <fstream>
 #include <modifycommand.h>
 #include <ranges>
 #include <scn/scan.h>
@@ -148,7 +149,12 @@ namespace WebStat {
 	void
 	Ingestor::ingestLogLine(const std::string_view line)
 	{
-		ingestLogLine(dbpool->get().get(), line);
+		try {
+			ingestLogLine(dbpool->get().get(), line);
+		}
+		catch (const std::exception &) {
+			parkLogLine(line);
+		}
 	}
 
 	void
@@ -169,6 +175,13 @@ namespace WebStat {
 			const auto unparsableLine = toEntity(line, EntityType::UnparsableLine);
 			storeEntities(dbconn, {unparsableLine});
 		}
+	}
+
+	void
+	Ingestor::parkLogLine(std::string_view line)
+	{
+		std::ofstream {settings.fallbackDir / std::format("parked-{}.log", crc32(line))} << line;
+		linesParked++;
 	}
 
 	template<typename... T>
