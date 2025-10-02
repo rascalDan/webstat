@@ -127,7 +127,8 @@ namespace WebStat {
 	{
 		curl_waitfd logIn {.fd = fileno(input), .events = CURL_WAIT_POLLIN, .revents = 0};
 
-		while (curl_multi_poll(curl.get(), &logIn, 1, INT_MAX, nullptr) == CURLM_OK) {
+		for (int interesting = 0;
+				curl_multi_poll(curl.get(), &logIn, 1, settings.idleJobsAfter, &interesting) == CURLM_OK;) {
 			if (logIn.revents) {
 				if (auto line = scn::scan<std::string>(input, "{:[^\n]}\n")) {
 					linesRead++;
@@ -139,6 +140,9 @@ namespace WebStat {
 			}
 			else if (!curlOperations.empty()) {
 				handleCurlOperations();
+			}
+			else if (!interesting) {
+				// do idle job things
 			}
 		}
 		while (!curlOperations.empty() && curl_multi_poll(curl.get(), nullptr, 0, INT_MAX, nullptr) == CURLM_OK) {

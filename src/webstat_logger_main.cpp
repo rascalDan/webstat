@@ -40,6 +40,8 @@ main(int argc, char ** argv)
 		 "Number of write/read write DB connections to keep open")
 		("fallback.dir", po::value(&settings.fallbackDir)->default_value(settings.fallbackDir),
 		 "Path to write access logs to when the database is unavailable")
+		("jobs.idle", po::value(&settings.idleJobsAfter)->default_value(settings.idleJobsAfter),
+		 "Run idle when there's no activity for this period (ms)")
 		;
 	// clang-format on
 	po::variables_map optVars;

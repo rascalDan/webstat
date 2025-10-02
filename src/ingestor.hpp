@@ -13,12 +13,16 @@
 #include <sys/utsname.h>
 
 namespace WebStat {
+	using namespace std::chrono;
+	using namespace std::chrono_literals;
+
 	struct IngestorSettings : Settings {
 		std::string dbConnStr = "dbname=webstat user=webstat";
 		std::string userAgentAPI = "https://useragentstring.com";
 		std::filesystem::path fallbackDir = "/var/log/webstat";
 		unsigned int dbMax = 4;
 		unsigned int dbKeep = 2;
+		int idleJobsAfter = duration_cast<milliseconds>(1min).count();
 	};
 
 	class Ingestor {
