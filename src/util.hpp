@@ -23,6 +23,8 @@ namespace WebStat {
 				values);
 	}
 
+	using FilePtr = std::unique_ptr<std::FILE, DeleteWith<&fclose>>;
+
 	template<typename... T>
 	void
 	bindMany(const DB::CommandPtr & cmd, unsigned int firstParam, T &&... param)

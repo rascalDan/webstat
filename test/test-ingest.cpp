@@ -259,6 +259,53 @@ BOOST_AUTO_TEST_CASE(ParkLogLineOnError)
 	BOOST_CHECK_EQUAL(linesParked, 1);
 }
 
+BOOST_AUTO_TEST_CASE(IngestParked, *boost::unit_test::depends_on("I/ParkLogLine"))
+{
+	parkLogLine(LOGLINE1);
+	BOOST_REQUIRE_EQUAL(linesParked, 1);
+	BOOST_REQUIRE_EQUAL(linesParsed, 0);
+	jobIngestParkedLines();
+	BOOST_CHECK_EQUAL(linesParsed, 1);
+	BOOST_CHECK_EQUAL(linesDiscarded, 0);
+	BOOST_CHECK(!std::filesystem::exists(settings.fallbackDir / "parked-3377916038.log"));
+}
+
+BOOST_AUTO_TEST_CASE(IngestParkedJob, *boost::unit_test::depends_on("I/IngestParked"))
+{
+	const auto now = JobLastRunTime::clock::now();
+	lastRunIngestParkedLines = now - 1s;
+	parkLogLine(LOGLINE1);
+
+	runJobsIdle();
+	BOOST_REQUIRE_EQUAL(linesParked, 1);
+	BOOST_REQUIRE_EQUAL(linesParsed, 0);
+	BOOST_CHECK_EQUAL(lastRunIngestParkedLines, now - 1s);
+
+	lastRunIngestParkedLines = now - settings.freqIngestParkedLines + 2s;
+	BOOST_REQUIRE_EQUAL(linesParked, 1);
+	BOOST_REQUIRE_EQUAL(linesParsed, 0);
+	BOOST_CHECK_EQUAL(lastRunIngestParkedLines, now - settings.freqIngestParkedLines + 2s);
+
+	lastRunIngestParkedLines = now - settings.freqIngestParkedLines - 1s;
+	runJobsIdle();
+	BOOST_CHECK_EQUAL(linesParsed, 1);
+	BOOST_CHECK_EQUAL(linesDiscarded, 0);
+	BOOST_CHECK_GE(lastRunIngestParkedLines, now);
+	BOOST_CHECK(!std::filesystem::exists(settings.fallbackDir / "parked-3377916038.log"));
+}
+
+BOOST_AUTO_TEST_CASE(JobErrorRescheduler, *boost::unit_test::depends_on("I/IngestParkedJob"))
+{
+	const auto now = JobLastRunTime::clock::now();
+	lastRunIngestParkedLines = now - settings.freqIngestParkedLines - 1s;
+	parkLogLine(LOGLINE1);
+	std::filesystem::permissions(settings.fallbackDir / "parked-3377916038.log", std::filesystem::perms::owner_write);
+	runJobsIdle();
+	BOOST_CHECK(std::filesystem::exists(settings.fallbackDir / "parked-3377916038.log"));
+	BOOST_CHECK_GE(lastRunIngestParkedLines, now - (settings.freqIngestParkedLines / 2) - 1s);
+	BOOST_CHECK_LE(lastRunIngestParkedLines, now - (settings.freqIngestParkedLines / 2) + 1s);
+}
+
 BOOST_AUTO_TEST_CASE(FetchMockUserAgentDetail)
 {
 	const auto uaDetailReq = WebStat::curlGetUserAgentDetail(0,

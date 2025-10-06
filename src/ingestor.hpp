@@ -23,6 +23,7 @@ namespace WebStat {
 		unsigned int dbMax = 4;
 		unsigned int dbKeep = 2;
 		int idleJobsAfter = duration_cast<milliseconds>(1min).count();
+		minutes freqIngestParkedLines = 30min;
 	};
 
 	class Ingestor {
@@ -44,6 +45,9 @@ namespace WebStat {
 		void ingestLogLine(std::string_view);
 		void ingestLogLine(DB::Connection *, std::string_view);
 		void parkLogLine(std::string_view);
+		void runJobsIdle();
+
+		void jobIngestParkedLines();
 
 		template<typename... T> void storeLogLine(DB::Connection *, const std::tuple<T...> &) const;
 
@@ -57,12 +61,18 @@ namespace WebStat {
 		size_t linesDiscarded = 0;
 		size_t linesParked = 0;
 
+		using JobLastRunTime = std::chrono::system_clock::time_point;
+		JobLastRunTime lastRunIngestParkedLines;
+
 	private:
 		static constexpr size_t MAX_NEW_ENTITIES = 6;
 		void storeEntities(DB::Connection *, std::span<const std::optional<Entity>>) const;
 		using NewEntities = std::array<std::optional<Entity>, MAX_NEW_ENTITIES>;
 		template<typename... T> NewEntities newEntities(const std::tuple<T...> &) const;
 		void handleCurlOperations();
+
+		void jobIngestParkedLine(const std::filesystem::directory_iterator &);
+		void jobIngestParkedLine(const std::filesystem::path &, uintmax_t size);
 
 		using CurlOperations = std::map<CURL *, std::unique_ptr<CurlOperation>>;
 		mutable std::flat_set<Crc32Value> existingEntities;

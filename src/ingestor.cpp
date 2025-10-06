@@ -142,7 +142,7 @@ namespace WebStat {
 				handleCurlOperations();
 			}
 			else if (!interesting) {
-				// do idle job things
+				runJobsIdle();
 			}
 		}
 		while (!curlOperations.empty() && curl_multi_poll(curl.get(), nullptr, 0, INT_MAX, nullptr) == CURLM_OK) {
@@ -186,6 +186,62 @@ namespace WebStat {
 	{
 		std::ofstream {settings.fallbackDir / std::format("parked-{}.log", crc32(line))} << line;
 		linesParked++;
+	}
+
+	void
+	Ingestor::runJobsIdle()
+	{
+		const auto now = JobLastRunTime::clock::now();
+		auto runJobAsNeeded = [this, now](auto job, JobLastRunTime & lastRun, auto freq) {
+			try {
+				if (lastRun + freq < now) {
+					(this->*job)();
+					lastRun = now;
+				}
+			}
+			catch (const std::exception &) {
+				// Error, retry in half the frequency
+				lastRun = now - (freq / 2);
+			}
+		};
+		runJobAsNeeded(&Ingestor::jobIngestParkedLines, lastRunIngestParkedLines, settings.freqIngestParkedLines);
+	}
+
+	void
+	Ingestor::jobIngestParkedLines()
+	{
+		for (auto pathIter = std::filesystem::directory_iterator {settings.fallbackDir};
+				pathIter != std::filesystem::directory_iterator {}; ++pathIter) {
+			if (scn::scan<Crc32Value>(pathIter->path().filename().string(), "parked-{}.log")) {
+				jobIngestParkedLine(pathIter);
+			}
+		}
+	}
+
+	void
+	Ingestor::jobIngestParkedLine(const std::filesystem::directory_iterator & pathIter)
+	{
+		jobIngestParkedLine(pathIter->path(), pathIter->file_size());
+	}
+
+	void
+	Ingestor::jobIngestParkedLine(const std::filesystem::path & path, uintmax_t size)
+	{
+		if (std::ifstream parked {path}) {
+			std::string line;
+			line.resize_and_overwrite(size, [&parked](char * content, size_t size) {
+				parked.read(content, static_cast<std::streamsize>(size));
+				return static_cast<size_t>(parked.tellg());
+			});
+			if (line.length() < size) {
+				throw std::system_error {errno, std::generic_category(), "Short read of parked file"};
+			}
+			ingestLogLine(dbpool->get().get(), line);
+		}
+		else {
+			throw std::system_error {errno, std::generic_category(), strerror(errno)};
+		}
+		std::filesystem::remove(path);
 	}
 
 	template<typename... T>

@@ -16,8 +16,6 @@ namespace WebStat {
 #undef XSTR
 #undef STR
 
-	using FilePtr = std::unique_ptr<std::FILE, DeleteWith<&fclose>>;
-
 	struct MockDB : public DB::PluginMock<PQ::Mock> {
 		MockDB();
 	};
