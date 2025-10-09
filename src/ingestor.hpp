@@ -60,13 +60,15 @@ namespace WebStat {
 		size_t linesParsed = 0;
 		size_t linesDiscarded = 0;
 		size_t linesParked = 0;
+		mutable std::flat_set<Crc32Value> existingEntities;
 
 		using JobLastRunTime = std::chrono::system_clock::time_point;
 		JobLastRunTime lastRunIngestParkedLines;
 
 	private:
 		static constexpr size_t MAX_NEW_ENTITIES = 6;
-		void storeEntities(DB::Connection *, std::span<const std::optional<Entity>>) const;
+		using NewEntityIds = std::array<std::optional<Crc32Value>, MAX_NEW_ENTITIES>;
+		NewEntityIds storeEntities(DB::Connection *, std::span<const std::optional<Entity>>) const;
 		using NewEntities = std::array<std::optional<Entity>, MAX_NEW_ENTITIES>;
 		template<typename... T> NewEntities newEntities(const std::tuple<T...> &) const;
 		void handleCurlOperations();
@@ -75,7 +77,6 @@ namespace WebStat {
 		void jobIngestParkedLine(const std::filesystem::path &, uintmax_t size);
 
 		using CurlOperations = std::map<CURL *, std::unique_ptr<CurlOperation>>;
-		mutable std::flat_set<Crc32Value> existingEntities;
 		uint32_t hostnameId;
 		CurlMultiPtr curl;
 		mutable CurlOperations curlOperations;

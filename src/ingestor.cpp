@@ -164,20 +164,30 @@ namespace WebStat {
 	void
 	Ingestor::ingestLogLine(DB::Connection * dbconn, const std::string_view line)
 	{
+		auto rememberNewEntityIds = [this](const auto & ids) {
+			existingEntities.insert_range(ids | std::views::take_while(&std::optional<Crc32Value>::has_value)
+					| std::views::transform([](auto && value) {
+						  return *value;
+					  }));
+		};
 		if (auto result = scanLogLine(line)) {
 			linesParsed++;
 			const auto values = crc32ScanValues(result->values());
-			std::optional<DB::TransactionScope> dbtx;
-			if (const auto newEnts = newEntities(values); newEnts.front()) {
-				dbtx.emplace(*dbconn);
-				storeEntities(dbconn, newEnts);
+			NewEntityIds ids;
+			{
+				std::optional<DB::TransactionScope> dbtx;
+				if (const auto newEnts = newEntities(values); newEnts.front()) {
+					dbtx.emplace(*dbconn);
+					ids = storeEntities(dbconn, newEnts);
+				}
+				storeLogLine(dbconn, values);
 			}
-			storeLogLine(dbconn, values);
+			rememberNewEntityIds(ids);
 		}
 		else {
 			linesDiscarded++;
 			const auto unparsableLine = toEntity(line, EntityType::UnparsableLine);
-			storeEntities(dbconn, {unparsableLine});
+			rememberNewEntityIds(storeEntities(dbconn, {unparsableLine}));
 		}
 	}
 
@@ -270,15 +280,16 @@ namespace WebStat {
 		return rtn;
 	}
 
-	void
+	Ingestor::NewEntityIds
 	Ingestor::storeEntities(DB::Connection * dbconn, const std::span<const std::optional<Entity>> values) const
 	{
 		static constexpr std::array ENTITY_TYPE_VALUES {
 				"host", "virtual_host", "path", "query_string", "referrer", "user_agent", "unparsable_line"};
 
 		auto insert = dbconn->modify(SQL::ENTITY_INSERT, SQL::ENTITY_INSERT_OPTS);
-		std::ranges::for_each(
-				values | std::views::take_while(&std::optional<Entity>::has_value), [this, &insert](auto && entity) {
+		NewEntityIds ids;
+		std::ranges::transform(values | std::views::take_while(&std::optional<Entity>::has_value), ids.begin(),
+				[this, &insert](auto && entity) {
 					const auto & [entityId, type, value] = *entity;
 					bindMany(insert, 0, entityId, ENTITY_TYPE_VALUES[std::to_underlying(type)], value);
 					if (insert->execute() > 0) {
@@ -293,8 +304,9 @@ namespace WebStat {
 								break;
 						}
 					}
-					existingEntities.emplace(std::get<0>(*entity));
+					return std::get<0>(*entity);
 				});
+		return ids;
 	}
 
 	template<typename... T>

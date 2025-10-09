@@ -231,6 +231,7 @@ BOOST_DATA_TEST_CASE(StoreLogLine,
 	BOOST_CHECK_EQUAL(linesRead, 0);
 	BOOST_CHECK_EQUAL(linesParsed, 1);
 	BOOST_CHECK_EQUAL(linesDiscarded, 0);
+	BOOST_CHECK_EQUAL(existingEntities.size(), 4);
 }
 
 BOOST_AUTO_TEST_CASE(StoreLog, *boost::unit_test::depends_on("I/StoreLogLine"))
@@ -258,9 +259,12 @@ BOOST_TEST_DECORATOR(*boost::unit_test::depends_on("I/ParkLogLine"))
 
 BOOST_AUTO_TEST_CASE(ParkLogLineOnError)
 {
-	BOOST_REQUIRE_NO_THROW(dbpool->get()->execute("SET search_path = ''"));
-	BOOST_REQUIRE_NO_THROW(ingestLogLine(LOGLINE1));
+	BOOST_REQUIRE(existingEntities.empty());
+	constexpr std::string_view LOGLINE_BAD_VERB
+			= R"LOG(git.randomdan.homeip.net 98.82.40.168 1755561576768318 CAUSEPARK "/repo/gentoobrowse-api/commit/gentoobrowse-api/unittests/fixtures/756569aa764177340726dd3d40b41d89b11b20c7/app-crypt/pdfcrack/Manifest" "?h=gentoobrowse-api-0.9.1&id=a2ed3fd30333721accd4b697bfcb6cc4165c7714" HTTP/1.1 200 1884 107791 "-" "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Amazonbot/0.1; +https://developer.amazon.com/support/amazonbot) Chrome/119.0.6045.214 Safari/537.36")LOG";
+	BOOST_REQUIRE_NO_THROW(ingestLogLine(LOGLINE_BAD_VERB));
 	BOOST_CHECK_EQUAL(linesParked, 1);
+	BOOST_CHECK(existingEntities.empty());
 }
 
 BOOST_AUTO_TEST_CASE(IngestParked, *boost::unit_test::depends_on("I/ParkLogLine"))
