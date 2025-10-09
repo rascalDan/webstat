@@ -16,9 +16,9 @@ namespace WebStat {
 		bool operator<=>(const QueryString &) const = default;
 	};
 
-	struct CLFString : std::optional<std::string> {
-		using std::optional<std::string>::optional;
-		using std::optional<std::string>::operator=;
+	struct CLFString : std::optional<QuotedString> {
+		using std::optional<QuotedString>::optional;
+		using std::optional<QuotedString>::operator=;
 		bool operator<=>(const CLFString &) const = default;
 	};
 
@@ -49,7 +49,5 @@ namespace scn {
 
 	template<> struct scanner<WebStat::CLFString> : scanner<std::string, char> {
 		static scan_expected<typename ContextType::iterator> scan(WebStat::CLFString & value, ContextType & ctx);
-
-		static void decode(std::string &);
 	};
 }

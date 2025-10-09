@@ -4,16 +4,52 @@ namespace scn {
 	scan_expected<typename ContextType::iterator>
 	scanner<WebStat::QuotedString>::scan(WebStat::QuotedString & value, ContextType & ctx)
 	{
+		static constexpr auto BS_MAP = []() {
+			std::array<char, 128> map {};
+			map['f'] = '\f';
+			map['n'] = '\n';
+			map['r'] = '\r';
+			map['t'] = '\t';
+			map['v'] = '\v';
+			map['"'] = '"';
+			map['\\'] = '\\';
+			return map;
+		}();
+
 		if (auto empty = scn::scan<>(ctx.range(), R"("")")) {
 			return empty->begin();
 		}
 
-		auto result = scn::scan<std::string>(ctx.range(), R"("{:[^"]}")");
-		if (!result) {
-			return unexpected(result.error());
+		auto simple = scn::scan<std::string>(ctx.range(), R"("{:[^\"]}")");
+		if (simple) {
+			value = std::move(simple->value());
+			return simple->begin();
 		}
-		value = result->value();
-		return result->begin();
+
+		if (auto openQuote = scn::scan<>(ctx.range(), R"(")")) {
+			ctx.advance_to(openQuote->begin());
+			while (true) {
+				if (auto closeQuote = scn::scan<>(ctx.range(), R"(")")) {
+					return closeQuote->begin();
+				}
+				if (auto plain = scn::scan<std::string>(ctx.range(), R"({:[^\"]})")) {
+					value.append(plain->value());
+					ctx.advance_to(plain->begin());
+				}
+				else if (auto hex = scn::scan<unsigned char>(ctx.range(), R"HEX(\x{:.2x})HEX")) {
+					value.append(1, static_cast<char>(hex->value()));
+					ctx.advance_to(hex->begin());
+				}
+				else if (auto escaped = scn::scan<std::string>(ctx.range(), R"ESC(\{:.1[fnrtv"\]})ESC")) {
+					value.append(1, BS_MAP[static_cast<unsigned char>(escaped->value().front())]);
+					ctx.advance_to(escaped->begin());
+				}
+				else {
+					return unexpected(simple.error());
+				}
+			}
+		}
+		return unexpected(simple.error());
 	}
 
 	scan_expected<typename ContextType::iterator>
@@ -32,65 +68,17 @@ namespace scn {
 		if (!result) {
 			return unexpected(result.error());
 		}
-		value = result->value();
+		value = std::move(result->value());
 		return result->begin();
 	}
 
 	scan_expected<typename ContextType::iterator>
 	scanner<WebStat::CLFString>::scan(WebStat::CLFString & value, ContextType & ctx)
 	{
-		if (auto empty = scn::scan<>(ctx.range(), R"("")")) {
-			value.emplace();
-			return empty->begin();
-		}
-
 		if (auto null = scn::scan<>(ctx.range(), R"("-")")) {
 			return null->begin();
 		}
 
-		auto result = scn::scan<std::string>(ctx.range(), R"("{:[^"]}")");
-		if (!result) {
-			return unexpected(result.error());
-		}
-		value = result->value();
-		decode(*value);
-		return result->begin();
-	}
-
-	void
-	scanner<WebStat::CLFString>::decode(std::string & value)
-	{
-		static constexpr auto BS_MAP = []() {
-			std::array<char, 128> map {};
-			map['f'] = '\f';
-			map['n'] = '\n';
-			map['r'] = '\r';
-			map['t'] = '\t';
-			map['v'] = '\v';
-			map['"'] = '"';
-			map['\\'] = '\\';
-			return map;
-		}();
-
-		if (auto src = std::ranges::find(value, '\\'); src != value.end()) {
-			auto dest = src;
-			while (src != value.cend()) {
-				if (*src == '\\') {
-					const std::string_view escaped {++src, value.end()};
-					if (auto chr = BS_MAP[static_cast<unsigned char>(*src)]) {
-						*dest++ = chr;
-						src++;
-					}
-					else if (auto hex = scn::scan<unsigned char>(escaped, R"(x{:.2x})")) {
-						*dest++ = static_cast<char>(hex->value());
-						src += 3;
-					}
-				}
-				else {
-					*dest++ = *src++;
-				}
-			}
-			value.erase(dest, value.end());
-		}
+		return scn::scanner<WebStat::QuotedString> {}.scan(value.emplace(), ctx);
 	}
 }

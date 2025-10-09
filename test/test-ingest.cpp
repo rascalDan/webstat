@@ -63,6 +63,12 @@ BOOST_DATA_TEST_CASE(QuotedStringsGood,
 				{R"("-")", "-"},
 				{R"(".")", "."},
 				{R"("/url/path")", "/url/path"},
+				{R"("hex\x41")", "hexA"},
+				{R"("hex\x4141")", "hexA41"},
+				{R"("hex\x41\x41")", "hexAA"},
+				{R"("hex\t\x41")", "hex\tA"},
+				{R"("/packages/dev-php/pecl-uploadprogress(),')\"((,,")",
+						R"LOG(/packages/dev-php/pecl-uploadprogress(),')"((,,)LOG"},
 		}),
 		input, expected)
 {
@@ -113,24 +119,6 @@ BOOST_DATA_TEST_CASE(QueryStringsBad,
 }
 
 BOOST_TEST_DECORATOR(*boost::unit_test::timeout(1))
-
-BOOST_DATA_TEST_CASE(CLFStringsDecode,
-		boost::unit_test::data::make<WebStat::ParseData<std::string>>({
-				{"", ""},
-				{"plain", "plain"},
-				{R"(hex\x41)", "hexA"},
-				{R"(hex\x4141)", "hexA41"},
-				{R"(hex\x41\x41)", "hexAA"},
-				{R"(hex\t\x41)", "hex\tA"},
-		}),
-		input, expected)
-{
-	std::string value {input};
-	scn::scanner<WebStat::CLFString>::decode(value);
-	BOOST_CHECK_EQUAL(value, expected);
-}
-
-BOOST_TEST_DECORATOR(*boost::unit_test::depends_on("CLFStringsDecode"))
 
 BOOST_DATA_TEST_CASE(CLFStringsGood,
 		boost::unit_test::data::make<WebStat::ParseData<WebStat::CLFString>>({
@@ -190,6 +178,22 @@ BOOST_DATA_TEST_CASE(ExtractFields,
 	const auto result = WebStat::Ingestor::scanLogLine(input);
 	BOOST_REQUIRE(result);
 	BOOST_CHECK_EQUAL(result->values(), expected);
+}
+
+BOOST_AUTO_TEST_CASE(ExtractFieldsEdgeCasesUnparsable3580673700)
+{
+	const auto result = WebStat::Ingestor::scanLogLine(
+			R"LOG(gentoobrowse.randomdan.homeip.net 5.183.129.58 1759960912510520 GET "/packages/dev-php/pecl-uploadprogress(),')\"((,," "" HTTP/1.1 404 0 10051 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36")LOG");
+	BOOST_REQUIRE(result);
+	BOOST_CHECK_EQUAL(std::get<4>(result->values()), R"LOG(/packages/dev-php/pecl-uploadprogress(),')"((,,)LOG");
+}
+
+BOOST_AUTO_TEST_CASE(ExtractFieldsEdgeCasesUnparsable3603068405)
+{
+	const auto result = WebStat::Ingestor::scanLogLine(
+			R"LOG(gentoobrowse.randomdan.homeip.net 5.183.129.58 1759960912705682 GET "/packages/dev-php/pecl-uploadprogress'yqFSRA<'\">yuezhx" "" HTTP/1.1 404 0 19143 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36")LOG");
+	BOOST_REQUIRE(result);
+	BOOST_CHECK_EQUAL(std::get<4>(result->values()), R"LOG(/packages/dev-php/pecl-uploadprogress'yqFSRA<'">yuezhx)LOG");
 }
 
 class TestIngestor : public WebStat::Ingestor {
