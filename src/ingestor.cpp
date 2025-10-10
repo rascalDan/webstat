@@ -138,11 +138,11 @@ namespace WebStat {
 					break;
 				}
 			}
-			else if (!curlOperations.empty()) {
-				handleCurlOperations();
-			}
 			else if (!interesting) {
 				runJobsIdle();
+			}
+			if (!curlOperations.empty()) {
+				handleCurlOperations();
 			}
 		}
 		while (!curlOperations.empty() && curl_multi_poll(curl.get(), nullptr, 0, INT_MAX, nullptr) == CURLM_OK) {
