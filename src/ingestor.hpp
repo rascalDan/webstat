@@ -71,6 +71,7 @@ namespace WebStat {
 		NewEntityIds storeEntities(DB::Connection *, std::span<const std::optional<Entity>>) const;
 		using NewEntities = std::array<std::optional<Entity>, MAX_NEW_ENTITIES>;
 		template<typename... T> NewEntities newEntities(const std::tuple<T...> &) const;
+		void onNewUserAgent(const Entity &) const;
 		void handleCurlOperations();
 
 		void jobIngestParkedLine(const std::filesystem::directory_iterator &);

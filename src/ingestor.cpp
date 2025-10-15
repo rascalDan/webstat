@@ -283,30 +283,39 @@ namespace WebStat {
 	Ingestor::NewEntityIds
 	Ingestor::storeEntities(DB::Connection * dbconn, const std::span<const std::optional<Entity>> values) const
 	{
-		static constexpr std::array ENTITY_TYPE_VALUES {
-				"host", "virtual_host", "path", "query_string", "referrer", "user_agent", "unparsable_line"};
+		static constexpr std::array<std::pair<std::string_view, void (Ingestor::*)(const Entity &) const>, 7>
+				ENTITY_TYPE_VALUES {{
+						{"host", nullptr},
+						{"virtual_host", nullptr},
+						{"path", nullptr},
+						{"query_string", nullptr},
+						{"referrer", nullptr},
+						{"user_agent", &Ingestor::onNewUserAgent},
+						{"unparsable_line", nullptr},
+				}};
 
 		auto insert = dbconn->modify(SQL::ENTITY_INSERT, SQL::ENTITY_INSERT_OPTS);
 		NewEntityIds ids;
 		std::ranges::transform(values | std::views::take_while(&std::optional<Entity>::has_value), ids.begin(),
 				[this, &insert](auto && entity) {
 					const auto & [entityId, type, value] = *entity;
-					bindMany(insert, 0, entityId, ENTITY_TYPE_VALUES[std::to_underlying(type)], value);
-					if (insert->execute() > 0) {
-						switch (type) {
-							case EntityType::UserAgent: {
-								auto curlOp = curlGetUserAgentDetail(entityId, value, settings.userAgentAPI.c_str());
-								auto added = curlOperations.emplace(curlOp->hnd.get(), std::move(curlOp));
-								curl_multi_add_handle(curl.get(), added.first->first);
-								break;
-							}
-							default:
-								break;
-						}
+					const auto & [typeName, onInsert] = ENTITY_TYPE_VALUES[std::to_underlying(type)];
+					bindMany(insert, 0, entityId, typeName, value);
+					if (insert->execute() > 0 && onInsert) {
+						std::invoke(onInsert, this, *entity);
 					}
 					return std::get<0>(*entity);
 				});
 		return ids;
+	}
+
+	void
+	Ingestor::onNewUserAgent(const Entity & entity) const
+	{
+		const auto & [entityId, type, value] = entity;
+		auto curlOp = curlGetUserAgentDetail(entityId, value, settings.userAgentAPI.c_str());
+		auto added = curlOperations.emplace(curlOp->hnd.get(), std::move(curlOp));
+		curl_multi_add_handle(curl.get(), added.first->first);
 	}
 
 	template<typename... T>
