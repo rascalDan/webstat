@@ -82,11 +82,11 @@ namespace WebStat {
 	Ingestor::scanLogLine(std::string_view input)
 	{
 		return scn::scan< // Field : Apache format specifier : example
-				std::string_view, // virtual_host : %v : some.host.name
+				std::string_view, // virtual_host : %V : some.host.name
 				std::string_view, // remoteip : %a : 1.2.3.4 (or ipv6)
 				uint64_t, // request_time : %{usec}t : 123456790
 				std::string_view, // method : %m : GET
-				QuotedString, // URL : "%u" : "/foo/bar"
+				QuotedString, // path : "%u" : "/foo/bar"
 				QueryString, // query_string : "%q" : "?query=string" or ""
 				std::string_view, // protocol : %r : HTTPS/2.0
 				unsigned short, // status : %>s : 200
