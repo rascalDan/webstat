@@ -36,3 +36,14 @@ CREATE TABLE access_log (
 	CONSTRAINT fk_access_log_referrer FOREIGN KEY(referrer) REFERENCES entities(id),
 	CONSTRAINT fk_access_log_user_agent FOREIGN KEY(user_agent) REFERENCES entities(id)
 );
+
+CREATE OR REPLACE VIEW access_log_view AS
+SELECT l.id, h.id hostname_id, h.value hostname, v.id virtual_host_id, v.value virtual_host, remoteip::text, request_time, method, protocol,
+	p.id path_id, p.value path, q.id query_string_id, q.value query_string, status, size, duration, r.id referrer_id, r.value referrer, u.id user_agent_id, u.value user_agent
+FROM access_log l
+	LEFT OUTER JOIN entities h ON l.hostname = h.id
+	LEFT OUTER JOIN entities v ON l.virtual_host = v.id
+	LEFT OUTER JOIN entities p ON l.path = p.id
+	LEFT OUTER JOIN entities q ON l.query_string = q.id
+	LEFT OUTER JOIN entities r ON l.referrer = r.id
+	LEFT OUTER JOIN entities u ON l.user_agent = u.id;
