@@ -30,32 +30,36 @@ namespace WebStat {
 					static_cast<uInt>(value.length())));
 		}
 
-		Entity
-		toEntity(const std::string_view value, const EntityType type)
-		{
-			return {crc32(value), type, value};
-		}
+		template<EntityType Type> struct ToEntity {
+			Entity
+			operator()(const std::string_view value) const
+			{
+				return {crc32(value), Type, value};
+			}
 
-		std::optional<Entity>
-		toEntityo(const std::optional<std::string_view> value, const EntityType type)
-		{
-			return value.transform([type](auto && value) {
-				return toEntity(value, type);
-			});
-		}
+			template<typename T>
+			std::optional<Entity>
+			operator()(const std::optional<T> & value) const
+			{
+				return value.transform([this](auto && value) {
+					return (*this)(value);
+				});
+			}
+		};
 
 		auto
 		crc32ScanValues(const Ingestor::ScanValues & values)
 		{
-			return std::apply(
-					[](auto &&... value) {
-						return std::make_tuple(toEntity(value...[0], EntityType::VirtualHost), value...[1], value...[2],
-								value...[3], toEntity(value...[4], EntityType::Path),
-								toEntityo(value...[5], EntityType::QueryString), value...[6], value...[7], value...[8],
-								value...[9], toEntityo(value...[10], EntityType::Referrer),
-								toEntityo(value...[11], EntityType::UserAgent));
-					},
-					values);
+			static constexpr std::tuple<ToEntity<EntityType::VirtualHost>, std::identity, std::identity, std::identity,
+					ToEntity<EntityType::Path>, ToEntity<EntityType::QueryString>, std::identity, std::identity,
+					std::identity, std::identity, ToEntity<EntityType::Referrer>, ToEntity<EntityType::UserAgent>>
+					ENTITY_TYPE_MAP;
+			static constexpr size_t VALUE_COUNT = std::tuple_size_v<Ingestor::ScanValues>;
+			static_assert(VALUE_COUNT == std::tuple_size_v<decltype(ENTITY_TYPE_MAP)>);
+
+			return [&values]<size_t... N>(std::index_sequence<N...>) {
+				return std::make_tuple(std::get<N>(ENTITY_TYPE_MAP)(std::get<N>(values))...);
+			}(std::make_index_sequence<VALUE_COUNT>());
 		}
 	}
 
@@ -186,7 +190,7 @@ namespace WebStat {
 		}
 		else {
 			linesDiscarded++;
-			const auto unparsableLine = toEntity(line, EntityType::UnparsableLine);
+			const auto unparsableLine = ToEntity<EntityType::UnparsableLine> {}(line);
 			rememberNewEntityIds(storeEntities(dbconn, {unparsableLine}));
 		}
 	}
