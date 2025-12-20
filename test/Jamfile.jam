@@ -15,8 +15,8 @@ project WebStat-Testing : requirements
 	<toolset>gcc,<variant>debug:<cflags>-Wno-missing-field-initializers
 	;
 
-lib test-util :
-	test-util.cpp
+lib testing-util :
+	testing-util.cpp
 	:
 	<library>..//dbpp-postgresql
 	;
@@ -26,7 +26,7 @@ run test-ingest.cpp :
 	../src/schema.sql
 	:
 	<define>BOOST_TEST_DYN_LINK
-	<library>test-util
+	<library>testing-util
 	<library>..//dbpp-postgresql
 	<library>boost_unit_test_framework
 	<library>dbpptestcore
@@ -34,7 +34,7 @@ run test-ingest.cpp :
 	;
 
 exe perf-ingest : perf-ingest.cpp :
-	<library>test-util
+	<library>testing-util
 	<library>$(src)//webstat
 	<library>..//dbpp-postgresql
 	<library>benchmark

@@ -2,7 +2,7 @@
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
 
-#include "test-util.hpp"
+#include "testing-util.hpp"
 #include <selectcommandUtil.impl.h>
 
 #include <ingestor.hpp>

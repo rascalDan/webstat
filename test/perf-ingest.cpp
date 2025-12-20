@@ -1,7 +1,7 @@
 #include <benchmark/benchmark.h>
 #include <filesystem>
 
-#include "test-util.hpp"
+#include "testing-util.hpp"
 #include <c++11Helpers.h>
 
 #include <ingestor.hpp>
