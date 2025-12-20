@@ -221,6 +221,7 @@ namespace WebStat {
 			}
 		};
 		runJobAsNeeded(&Ingestor::jobIngestParkedLines, lastRunIngestParkedLines, settings.freqIngestParkedLines);
+		runJobAsNeeded(&Ingestor::jobPurgeOldLogs, lastRunPurgeOldLogs, settings.freqPurgeOldLogs);
 	}
 
 	void
@@ -258,6 +259,26 @@ namespace WebStat {
 			throw std::system_error {errno, std::generic_category(), strerror(errno)};
 		}
 		std::filesystem::remove(path);
+	}
+
+	unsigned int
+	Ingestor::jobPurgeOldLogs()
+	{
+		auto dbconn = dbpool->get();
+		const auto stopAt = JobLastRunTime::clock::now() + settings.purgeDeleteMaxTime;
+		const auto purge = dbconn->modify(SQL::ACCESS_LOG_PURGE_OLD, SQL::ACCESS_LOG_PURGE_OLD_OPTS);
+		purge->bindParam(0, settings.purgeDeleteMax);
+		purge->bindParam(1, std::format("{} days", settings.purgeDaysToKeep));
+		unsigned int purgedTotal {};
+		while (stopAt > JobLastRunTime::clock::now()) {
+			const auto purged = purge->execute();
+			purgedTotal += purged;
+			if (purged < settings.purgeDeleteMax) {
+				break;
+			}
+			std::this_thread::sleep_for(settings.purgeDeletePause);
+		}
+		return purgedTotal;
 	}
 
 	template<typename... T>

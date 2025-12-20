@@ -17,6 +17,7 @@ namespace WebStat {
 	using namespace std::chrono_literals;
 
 	struct IngestorSettings : Settings {
+		// NOLINTBEGIN(readability-magic-numbers)
 		std::string dbConnStr = "dbname=webstat user=webstat";
 		std::string userAgentAPI = "https://useragentstring.com";
 		std::filesystem::path fallbackDir = "/var/log/webstat";
@@ -24,6 +25,12 @@ namespace WebStat {
 		unsigned int dbKeep = 2;
 		int idleJobsAfter = duration_cast<milliseconds>(1min).count();
 		minutes freqIngestParkedLines = 30min;
+		minutes freqPurgeOldLogs = 6h;
+		unsigned int purgeDaysToKeep = 61; // ~2 months
+		unsigned int purgeDeleteMax = 10'000;
+		minutes purgeDeleteMaxTime = 5min;
+		seconds purgeDeletePause = 3s;
+		// NOLINTEND(readability-magic-numbers)
 	};
 
 	class Ingestor {
@@ -48,6 +55,7 @@ namespace WebStat {
 		void runJobsIdle();
 
 		void jobIngestParkedLines();
+		unsigned int jobPurgeOldLogs();
 
 		template<typename... T> void storeLogLine(DB::Connection *, const std::tuple<T...> &) const;
 
@@ -64,6 +72,7 @@ namespace WebStat {
 
 		using JobLastRunTime = std::chrono::system_clock::time_point;
 		JobLastRunTime lastRunIngestParkedLines;
+		JobLastRunTime lastRunPurgeOldLogs;
 
 	private:
 		static constexpr size_t MAX_NEW_ENTITIES = 6;

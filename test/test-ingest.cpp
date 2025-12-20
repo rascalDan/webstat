@@ -341,6 +341,11 @@ BOOST_AUTO_TEST_CASE(DiscardUnparsable)
 	BOOST_CHECK_EQUAL_COLLECTIONS(rows.begin(), rows.end(), EXPECTED.begin(), EXPECTED.end());
 }
 
+BOOST_AUTO_TEST_CASE(PurgeOldJob)
+{
+	BOOST_CHECK_EQUAL(2, jobPurgeOldLogs());
+}
+
 BOOST_AUTO_TEST_SUITE_END();
 
 BOOST_AUTO_TEST_CASE(FetchRealUserAgentDetail, *boost::unit_test::disabled())

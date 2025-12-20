@@ -59,6 +59,16 @@ main(int argc, char ** argv)
 		 "Run idle when there's no activity for this period (ms)")
 		("job.parked.freq", po::value(&settings.freqIngestParkedLines)->default_value(settings.freqIngestParkedLines),
 		 "How often to check for and import parked log lines")
+		("job.purge.freq", po::value(&settings.freqPurgeOldLogs)->default_value(settings.freqPurgeOldLogs),
+		 "How often to purge old access log entries from the database")
+		("job.purge.days", po::value(&settings.purgeDaysToKeep)->default_value(settings.purgeDaysToKeep),
+		 "How many days of access log entries to keep")
+		("job.purge.max", po::value(&settings.purgeDeleteMax)->default_value(settings.purgeDeleteMax),
+		 "Maximum number of access log entries to delete in a single operation")
+		("job.purge.time", po::value(&settings.purgeDeleteMaxTime)->default_value(settings.purgeDeleteMaxTime),
+		 "Maximum amount of time to spending purging old access log entries before continuing to ingest")
+		("job.purge.pause", po::value(&settings.purgeDeletePause)->default_value(settings.purgeDeletePause),
+		 "Time to pause for between repeated exections of a delete operation")
 		;
 	// clang-format on
 	po::variables_map optVars;
