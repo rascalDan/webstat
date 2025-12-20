@@ -21,6 +21,15 @@ lib testing-util :
 	<library>..//dbpp-postgresql
 	;
 
+run test-util.cpp : : :
+	<define>BOOST_TEST_DYN_LINK
+	<library>testing-util
+	<library>..//dbpp-postgresql
+	<library>boost_unit_test_framework
+	<library>dbpptestcore
+	<library>stdc++fs
+	;
+
 run test-ingest.cpp :
 	-- :
 	../src/schema.sql

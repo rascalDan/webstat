@@ -1,6 +1,8 @@
 #pragma once
 
+#include <chrono>
 #include <command.h>
+#include <scn/scan.h>
 #include <tuple>
 
 namespace WebStat {
@@ -30,5 +32,47 @@ namespace WebStat {
 	bindMany(const DB::CommandPtr & cmd, unsigned int firstParam, T &&... param)
 	{
 		(cmd->bindParam(firstParam++, std::forward<T>(param)), ...);
+	}
+
+	namespace detail {
+		template<typename Rep, typename Period, typename AddPeriod>
+		void
+		add(std::chrono::duration<Rep, Period> & subtotal, Rep value)
+		{
+			if constexpr (requires { subtotal += AddPeriod {value}; }) {
+				subtotal += AddPeriod {value};
+			}
+		}
+	}
+
+	template<typename Rep, typename Period>
+	std::chrono::duration<Rep, Period>
+	parseDuration(std::string_view input)
+	{
+		static constexpr std::initializer_list<
+				std::pair<void (*)(std::chrono::duration<Rep, Period> & subtotal, Rep value), std::string_view>>
+				DURATION_UNITS {
+						{detail::add<Rep, Period, std::chrono::milliseconds>, "ms"},
+						{detail::add<Rep, Period, std::chrono::seconds>, "s"},
+						{detail::add<Rep, Period, std::chrono::minutes>, "m"},
+						{detail::add<Rep, Period, std::chrono::hours>, "h"},
+						{detail::add<Rep, Period, std::chrono::days>, "d"},
+						{detail::add<Rep, Period, std::chrono::weeks>, "w"},
+				};
+
+		std::chrono::duration<Rep, Period> out {};
+		auto inputSubRange = scn::ranges::subrange {input};
+
+		while (auto result = scn::scan<Rep, std::string>(inputSubRange, "{}{:[a-z]}")) {
+			const auto & [count, chars] = result->values();
+			if (auto unit = std::ranges::find(
+						DURATION_UNITS, chars, &std::decay_t<decltype(*DURATION_UNITS.begin())>::second);
+					unit != DURATION_UNITS.end()) {
+				unit->first(out, count);
+			}
+			inputSubRange = result->range();
+		}
+
+		return out;
 	}
 }
