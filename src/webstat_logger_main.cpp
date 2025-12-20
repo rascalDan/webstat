@@ -1,4 +1,5 @@
 #include "ingestor.hpp"
+#include "util.hpp"
 #include <boost/program_options.hpp>
 #include <format>
 #include <iostream>
@@ -17,6 +18,20 @@ namespace {
 		return uts;
 	}
 }
+
+#define LEXICAL_CAST_DURATION(UNIT) \
+	template<> std::chrono::UNIT boost::lexical_cast<std::chrono::UNIT, std::string>(const std::string & input) \
+	{ \
+		return WebStat::parseDuration<std::chrono::UNIT::rep, std::chrono::UNIT::period>(input); \
+	}
+
+LEXICAL_CAST_DURATION(milliseconds);
+LEXICAL_CAST_DURATION(seconds);
+LEXICAL_CAST_DURATION(minutes);
+LEXICAL_CAST_DURATION(hours);
+LEXICAL_CAST_DURATION(days);
+LEXICAL_CAST_DURATION(weeks);
+#undef LEXICAL_CAST_DURATION
 
 int
 main(int argc, char ** argv)
@@ -42,6 +57,8 @@ main(int argc, char ** argv)
 		 "Path to write access logs to when the database is unavailable")
 		("jobs.idle", po::value(&settings.idleJobsAfter)->default_value(settings.idleJobsAfter),
 		 "Run idle when there's no activity for this period (ms)")
+		("job.parked.freq", po::value(&settings.freqIngestParkedLines)->default_value(settings.freqIngestParkedLines),
+		 "How often to check for and import parked log lines")
 		;
 	// clang-format on
 	po::variables_map optVars;
