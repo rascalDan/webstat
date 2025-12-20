@@ -15,6 +15,7 @@
 namespace DB {
 	template<>
 	void
+	// NOLINTNEXTLINE(readability-inconsistent-declaration-parameter-name)
 	DB::Command::bindParam(unsigned int idx, const WebStat::Entity & entity)
 	{
 		bindParamI(idx, std::get<0>(entity));
@@ -26,6 +27,7 @@ namespace WebStat {
 		Crc32Value
 		crc32(const std::string_view value)
 		{
+			// NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast) - correct for crc32ing raw bytes
 			return static_cast<Crc32Value>(::crc32(::crc32(0, Z_NULL, 0), reinterpret_cast<const Bytef *>(value.data()),
 					static_cast<uInt>(value.length())));
 		}
