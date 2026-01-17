@@ -1,1 +1,6 @@
-UPDATE entities SET detail = $2 WHERE id = $1
+UPDATE
+	entities
+SET
+	detail = $2
+WHERE
+	id = $1
