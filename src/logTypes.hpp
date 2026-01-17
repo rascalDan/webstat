@@ -30,6 +30,7 @@ namespace WebStat {
 		Referrer,
 		UserAgent,
 		UnparsableLine,
+		UninsertableLine,
 	};
 
 	using Crc32Value = uint32_t;

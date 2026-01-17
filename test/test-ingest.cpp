@@ -263,8 +263,8 @@ BOOST_AUTO_TEST_CASE(ParkLogLineOnError)
 	constexpr std::string_view LOGLINE_BAD_VERB
 			= R"LOG(git.randomdan.homeip.net 98.82.40.168 1755561576768318 CAUSEPARK "/repo/gentoobrowse-api/commit/gentoobrowse-api/unittests/fixtures/756569aa764177340726dd3d40b41d89b11b20c7/app-crypt/pdfcrack/Manifest" "?h=gentoobrowse-api-0.9.1&id=a2ed3fd30333721accd4b697bfcb6cc4165c7714" HTTP/1.1 200 1884 107791 "-" "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Amazonbot/0.1; +https://developer.amazon.com/support/amazonbot) Chrome/119.0.6045.214 Safari/537.36")LOG";
 	BOOST_REQUIRE_NO_THROW(ingestLogLine(LOGLINE_BAD_VERB));
-	BOOST_CHECK_EQUAL(linesParked, 1);
-	BOOST_CHECK(existingEntities.empty());
+	BOOST_CHECK_EQUAL(linesParked, 0);
+	BOOST_CHECK_EQUAL(existingEntities.size(), 1);
 }
 
 BOOST_AUTO_TEST_CASE(IngestParked, *boost::unit_test::depends_on("I/ParkLogLine"))

@@ -27,7 +27,8 @@ CREATE TYPE entity AS ENUM(
 	'query_string',
 	'referrer',
 	'user_agent',
-	'unparsable_line'
+	'unparsable_line',
+	'uninsertable_line'
 );
 
 CREATE TABLE entities(

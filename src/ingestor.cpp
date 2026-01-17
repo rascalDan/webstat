@@ -180,15 +180,26 @@ namespace WebStat {
 			linesParsed++;
 			const auto values = crc32ScanValues(result->values());
 			NewEntityIds ids;
-			{
-				std::optional<DB::TransactionScope> dbtx;
-				if (const auto newEnts = newEntities(values); newEnts.front()) {
-					dbtx.emplace(*dbconn);
-					ids = storeEntities(dbconn, newEnts);
+			try {
+				{
+					std::optional<DB::TransactionScope> dbtx;
+					if (const auto newEnts = newEntities(values); newEnts.front()) {
+						dbtx.emplace(*dbconn);
+						ids = storeEntities(dbconn, newEnts);
+					}
+					storeLogLine(dbconn, values);
 				}
-				storeLogLine(dbconn, values);
+				rememberNewEntityIds(ids);
 			}
-			rememberNewEntityIds(ids);
+			catch (const DB::Error & originalError) {
+				try {
+					const auto uninsertableLine = ToEntity<EntityType::UninsertableLine> {}(line);
+					rememberNewEntityIds(storeEntities(dbconn, {uninsertableLine}));
+				}
+				catch (const std::exception &) {
+					throw originalError;
+				}
+			}
 		}
 		else {
 			linesDiscarded++;
@@ -310,7 +321,7 @@ namespace WebStat {
 	Ingestor::NewEntityIds
 	Ingestor::storeEntities(DB::Connection * dbconn, const std::span<const std::optional<Entity>> values) const
 	{
-		static constexpr std::array<std::pair<std::string_view, void (Ingestor::*)(const Entity &) const>, 7>
+		static constexpr std::array<std::pair<std::string_view, void (Ingestor::*)(const Entity &) const>, 8>
 				ENTITY_TYPE_VALUES {{
 						{"host", nullptr},
 						{"virtual_host", nullptr},
@@ -319,6 +330,7 @@ namespace WebStat {
 						{"referrer", nullptr},
 						{"user_agent", &Ingestor::onNewUserAgent},
 						{"unparsable_line", nullptr},
+						{"uninsertable_line", nullptr},
 				}};
 
 		auto insert = dbconn->modify(SQL::ENTITY_INSERT, SQL::ENTITY_INSERT_OPTS);
