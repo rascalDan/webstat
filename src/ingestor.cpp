@@ -54,7 +54,8 @@ namespace WebStat {
 		{
 			static constexpr std::tuple<ToEntity<EntityType::VirtualHost>, std::identity, std::identity, std::identity,
 					ToEntity<EntityType::Path>, ToEntity<EntityType::QueryString>, std::identity, std::identity,
-					std::identity, std::identity, ToEntity<EntityType::Referrer>, ToEntity<EntityType::UserAgent>>
+					std::identity, std::identity, ToEntity<EntityType::Referrer>, ToEntity<EntityType::UserAgent>,
+					ToEntity<EntityType::ContentType>>
 					ENTITY_TYPE_MAP;
 			static constexpr size_t VALUE_COUNT = std::tuple_size_v<Ingestor::ScanValues>;
 			static_assert(VALUE_COUNT == std::tuple_size_v<decltype(ENTITY_TYPE_MAP)>);
@@ -99,8 +100,9 @@ namespace WebStat {
 				unsigned int, // size : %B : 1234
 				unsigned int, // duration : %D : 1234
 				CLFString, // referrer : "%{Referer}i" : "https://google.com/whatever" or "-"
-				CLFString // user_agent : "%{User-agent}i" : "Chromium v123.4" or "-"
-				>(input, R"({} {} {} {:[A-Z]} {} {} {} {} {} {} {} {})");
+				CLFString, // user_agent : "%{User-agent}i" : "Chromium v123.4" or "-"
+				CLFString // content_type : "%{Content-type}o" : "test/plain" or "-"
+				>(input, R"({} {} {} {:[A-Z]} {} {} {} {} {} {} {} {} {})");
 	}
 
 	void
@@ -321,7 +323,7 @@ namespace WebStat {
 	Ingestor::NewEntityIds
 	Ingestor::storeEntities(DB::Connection * dbconn, const std::span<const std::optional<Entity>> values) const
 	{
-		static constexpr std::array<std::pair<std::string_view, void (Ingestor::*)(const Entity &) const>, 8>
+		static constexpr std::array<std::pair<std::string_view, void (Ingestor::*)(const Entity &) const>, 9>
 				ENTITY_TYPE_VALUES {{
 						{"host", nullptr},
 						{"virtual_host", nullptr},
@@ -331,6 +333,7 @@ namespace WebStat {
 						{"user_agent", &Ingestor::onNewUserAgent},
 						{"unparsable_line", nullptr},
 						{"uninsertable_line", nullptr},
+						{"content_type", nullptr},
 				}};
 
 		auto insert = dbconn->modify(SQL::ENTITY_INSERT, SQL::ENTITY_INSERT_OPTS);

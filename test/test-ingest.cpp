@@ -151,9 +151,10 @@ BOOST_DATA_TEST_CASE(CLFStringsBad,
 }
 
 constexpr std::string_view LOGLINE1
-		= R"LOG(git.randomdan.homeip.net 98.82.40.168 1755561576768318 GET "/repo/gentoobrowse-api/commit/gentoobrowse-api/unittests/fixtures/756569aa764177340726dd3d40b41d89b11b20c7/app-crypt/pdfcrack/Manifest" "?h=gentoobrowse-api-0.9.1&id=a2ed3fd30333721accd4b697bfcb6cc4165c7714" HTTP/1.1 200 1884 107791 "-" "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Amazonbot/0.1; +https://developer.amazon.com/support/amazonbot) Chrome/119.0.6045.214 Safari/537.36")LOG";
+		= R"LOG(git.randomdan.homeip.net 98.82.40.168 1755561576768318 GET "/repo/gentoobrowse-api/commit/gentoobrowse-api/unittests/fixtures/756569aa764177340726dd3d40b41d89b11b20c7/app-crypt/pdfcrack/Manifest" "?h=gentoobrowse-api-0.9.1&id=a2ed3fd30333721accd4b697bfcb6cc4165c7714" HTTP/1.1 200 1884 107791 "-" "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Amazonbot/0.1; +https://developer.amazon.com/support/amazonbot) Chrome/119.0.6045.214 Safari/537.36" "test/plain")LOG";
+constexpr std::string_view LOGLINE1_PARKED = "parked-237093379.log";
 constexpr std::string_view LOGLINE2
-		= R"LOG(www.randomdan.homeip.net 43.128.84.166 1755561575973204 GET "/app-dicts/myspell-et/Manifest" "" HTTP/1.1 200 312 10369 "https://google.com" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36")LOG";
+		= R"LOG(www.randomdan.homeip.net 43.128.84.166 1755561575973204 GET "/app-dicts/myspell-et/Manifest" "" HTTP/1.1 200 312 10369 "https://google.com" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36" "image/png")LOG";
 
 BOOST_TEST_DECORATOR(*boost::unit_test::depends_on("QuotedStringsGood"))
 BOOST_TEST_DECORATOR(*boost::unit_test::depends_on("QueryStringsGood"))
@@ -166,12 +167,14 @@ BOOST_DATA_TEST_CASE(ExtractFields,
 								R"(/repo/gentoobrowse-api/commit/gentoobrowse-api/unittests/fixtures/756569aa764177340726dd3d40b41d89b11b20c7/app-crypt/pdfcrack/Manifest)",
 								R"(h=gentoobrowse-api-0.9.1&id=a2ed3fd30333721accd4b697bfcb6cc4165c7714)", "HTTP/1.1",
 								200, 1884, 107791, std::nullopt,
-								R"(Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Amazonbot/0.1; +https://developer.amazon.com/support/amazonbot) Chrome/119.0.6045.214 Safari/537.36)"}},
+								R"(Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Amazonbot/0.1; +https://developer.amazon.com/support/amazonbot) Chrome/119.0.6045.214 Safari/537.36)",
+								"test/plain"}},
 				{LOGLINE2,
 						{"www.randomdan.homeip.net", "43.128.84.166", 1755561575973204, "GET",
 								"/app-dicts/myspell-et/Manifest", std::nullopt, "HTTP/1.1", 200, 312, 10369,
 								"https://google.com",
-								R"(Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36)"}},
+								R"(Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36)",
+								"image/png"}},
 		}),
 		input, expected)
 {
@@ -183,7 +186,7 @@ BOOST_DATA_TEST_CASE(ExtractFields,
 BOOST_AUTO_TEST_CASE(ExtractFieldsEdgeCasesUnparsable3580673700)
 {
 	const auto result = WebStat::Ingestor::scanLogLine(
-			R"LOG(gentoobrowse.randomdan.homeip.net 5.183.129.58 1759960912510520 GET "/packages/dev-php/pecl-uploadprogress(),')\"((,," "" HTTP/1.1 404 0 10051 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36")LOG");
+			R"LOG(gentoobrowse.randomdan.homeip.net 5.183.129.58 1759960912510520 GET "/packages/dev-php/pecl-uploadprogress(),')\"((,," "" HTTP/1.1 404 0 10051 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" "-")LOG");
 	BOOST_REQUIRE(result);
 	BOOST_CHECK_EQUAL(std::get<4>(result->values()), R"LOG(/packages/dev-php/pecl-uploadprogress(),')"((,,)LOG");
 }
@@ -191,7 +194,7 @@ BOOST_AUTO_TEST_CASE(ExtractFieldsEdgeCasesUnparsable3580673700)
 BOOST_AUTO_TEST_CASE(ExtractFieldsEdgeCasesUnparsable3603068405)
 {
 	const auto result = WebStat::Ingestor::scanLogLine(
-			R"LOG(gentoobrowse.randomdan.homeip.net 5.183.129.58 1759960912705682 GET "/packages/dev-php/pecl-uploadprogress'yqFSRA<'\">yuezhx" "" HTTP/1.1 404 0 19143 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36")LOG");
+			R"LOG(gentoobrowse.randomdan.homeip.net 5.183.129.58 1759960912705682 GET "/packages/dev-php/pecl-uploadprogress'yqFSRA<'\">yuezhx" "" HTTP/1.1 404 0 19143 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" "-")LOG");
 	BOOST_REQUIRE(result);
 	BOOST_CHECK_EQUAL(std::get<4>(result->values()), R"LOG(/packages/dev-php/pecl-uploadprogress'yqFSRA<'">yuezhx)LOG");
 }
@@ -231,7 +234,8 @@ BOOST_DATA_TEST_CASE(StoreLogLine,
 	BOOST_CHECK_EQUAL(linesRead, 0);
 	BOOST_CHECK_EQUAL(linesParsed, 1);
 	BOOST_CHECK_EQUAL(linesDiscarded, 0);
-	BOOST_CHECK_EQUAL(existingEntities.size(), 4);
+	BOOST_CHECK_EQUAL(linesParked, 0);
+	BOOST_CHECK_EQUAL(existingEntities.size(), 5);
 }
 
 BOOST_AUTO_TEST_CASE(StoreLog, *boost::unit_test::depends_on("I/StoreLogLine"))
@@ -249,7 +253,7 @@ BOOST_AUTO_TEST_CASE(ParkLogLine)
 {
 	parkLogLine(LOGLINE1);
 	BOOST_CHECK_EQUAL(linesParked, 1);
-	const auto path = settings.fallbackDir / "parked-3377916038.log";
+	const auto path = settings.fallbackDir / LOGLINE1_PARKED;
 	BOOST_TEST_INFO(path);
 	BOOST_REQUIRE(std::filesystem::exists(path));
 	BOOST_CHECK_EQUAL(std::filesystem::file_size(path), LOGLINE1.length());
@@ -275,7 +279,7 @@ BOOST_AUTO_TEST_CASE(IngestParked, *boost::unit_test::depends_on("I/ParkLogLine"
 	jobIngestParkedLines();
 	BOOST_CHECK_EQUAL(linesParsed, 1);
 	BOOST_CHECK_EQUAL(linesDiscarded, 0);
-	BOOST_CHECK(!std::filesystem::exists(settings.fallbackDir / "parked-3377916038.log"));
+	BOOST_CHECK(!std::filesystem::exists(settings.fallbackDir / LOGLINE1_PARKED));
 }
 
 BOOST_AUTO_TEST_CASE(IngestParkedJob, *boost::unit_test::depends_on("I/IngestParked"))
@@ -299,7 +303,7 @@ BOOST_AUTO_TEST_CASE(IngestParkedJob, *boost::unit_test::depends_on("I/IngestPar
 	BOOST_CHECK_EQUAL(linesParsed, 1);
 	BOOST_CHECK_EQUAL(linesDiscarded, 0);
 	BOOST_CHECK_GE(lastRunIngestParkedLines, now);
-	BOOST_CHECK(!std::filesystem::exists(settings.fallbackDir / "parked-3377916038.log"));
+	BOOST_CHECK(!std::filesystem::exists(settings.fallbackDir / LOGLINE1_PARKED));
 }
 
 BOOST_AUTO_TEST_CASE(JobErrorRescheduler, *boost::unit_test::depends_on("I/IngestParkedJob"))
@@ -307,9 +311,9 @@ BOOST_AUTO_TEST_CASE(JobErrorRescheduler, *boost::unit_test::depends_on("I/Inges
 	const auto now = JobLastRunTime::clock::now();
 	lastRunIngestParkedLines = now - settings.freqIngestParkedLines - 1s;
 	parkLogLine(LOGLINE1);
-	std::filesystem::permissions(settings.fallbackDir / "parked-3377916038.log", std::filesystem::perms::owner_write);
+	std::filesystem::permissions(settings.fallbackDir / LOGLINE1_PARKED, std::filesystem::perms::owner_write);
 	runJobsIdle();
-	BOOST_CHECK(std::filesystem::exists(settings.fallbackDir / "parked-3377916038.log"));
+	BOOST_CHECK(std::filesystem::exists(settings.fallbackDir / LOGLINE1_PARKED));
 	BOOST_CHECK_GE(lastRunIngestParkedLines, now - (settings.freqIngestParkedLines / 2) - 1s);
 	BOOST_CHECK_LE(lastRunIngestParkedLines, now - (settings.freqIngestParkedLines / 2) + 1s);
 }

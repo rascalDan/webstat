@@ -34,6 +34,7 @@ namespace WebStat {
 			std::vector<std::string> qss;
 			std::vector<std::string> refs;
 			std::vector<std::string> uas;
+			std::vector<std::string> ct;
 		};
 
 		Strings strings;
@@ -65,6 +66,7 @@ namespace WebStat {
 						{strings.qss, 100, getStrGen(1, 50)},
 						{strings.refs, 50, getStrGen(10, 50)},
 						{strings.uas, 10, getStrGen(50, 70)},
+						{strings.ct, 10, getStrGen(10, 20)},
 				}) {
 			std::generate_n(std::back_inserter(out), count, stringGenerator);
 		}
@@ -86,10 +88,11 @@ namespace WebStat {
 
 		std::ofstream logfile {path};
 		for (size_t line = 0; line < entries; ++line) {
-			std::println(logfile, R"LOG({} {} {} GET "/{}" "?{}" HTTP/1.1 200 {} {} "{}" "{}")LOG",
+			std::println(logfile, R"LOG({} {} {} GET "/{}" "?{}" HTTP/1.1 200 {} {} "{}" "{}" "{}")LOG",
 					randomString(strings.vhosts), randomString(strings.ips), tick += tickDistrib(generator),
 					randomString(strings.paths), randomString(strings.qss), sizeDistrib(generator),
-					durationDistrib(generator), randomString(strings.refs), randomString(strings.uas));
+					durationDistrib(generator), randomString(strings.refs), randomString(strings.uas),
+					randomString(strings.ct));
 		}
 	}
 

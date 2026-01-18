@@ -43,7 +43,7 @@ namespace WebStat {
 
 		using ScanResult = decltype(scn::scan<std::string_view, std::string_view, uint64_t, std::string_view,
 				QuotedString, QueryString, std::string_view, unsigned short, unsigned int, unsigned int, CLFString,
-				CLFString>(std::declval<std::string_view>(), ""));
+				CLFString, CLFString>(std::declval<std::string_view>(), ""));
 		using ScanValues = std::remove_cvref_t<decltype(std::declval<WebStat::Ingestor::ScanResult>()->values())>;
 
 		[[nodiscard]] static ScanResult scanLogLine(std::string_view);

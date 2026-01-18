@@ -31,6 +31,7 @@ namespace WebStat {
 		UserAgent,
 		UnparsableLine,
 		UninsertableLine,
+		ContentType,
 	};
 
 	using Crc32Value = uint32_t;

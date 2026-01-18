@@ -28,7 +28,8 @@ CREATE TYPE entity AS ENUM(
 	'referrer',
 	'user_agent',
 	'unparsable_line',
-	'uninsertable_line'
+	'uninsertable_line',
+	'content_type'
 );
 
 CREATE TABLE entities(
@@ -55,13 +56,15 @@ CREATE TABLE access_log(
 	duration interval second(6) NOT NULL,
 	referrer oid,
 	user_agent oid,
+	content_type oid,
 	CONSTRAINT pk_access_log PRIMARY KEY (id),
 	CONSTRAINT fk_access_log_hostname FOREIGN KEY (hostname) REFERENCES entities(id),
 	CONSTRAINT fk_access_log_virtualhost FOREIGN KEY (virtual_host) REFERENCES entities(id),
 	CONSTRAINT fk_access_log_path FOREIGN KEY (path) REFERENCES entities(id),
 	CONSTRAINT fk_access_log_query_string FOREIGN KEY (query_string) REFERENCES entities(id),
 	CONSTRAINT fk_access_log_referrer FOREIGN KEY (referrer) REFERENCES entities(id),
-	CONSTRAINT fk_access_log_user_agent FOREIGN KEY (user_agent) REFERENCES entities(id)
+	CONSTRAINT fk_access_log_user_agent FOREIGN KEY (user_agent) REFERENCES entities(id),
+	CONSTRAINT fk_access_log_content_type FOREIGN KEY (content_type) REFERENCES entities(id)
 );
 
 CREATE OR REPLACE VIEW access_log_view AS
@@ -85,7 +88,9 @@ SELECT
 	r.id referrer_id,
 	r.value referrer,
 	u.id user_agent_id,
-	u.value user_agent
+	u.value user_agent,
+	c.id content_type_id,
+	c.value content_type
 FROM
 	access_log l
 	LEFT OUTER JOIN entities h ON l.hostname = h.id
@@ -93,4 +98,5 @@ FROM
 	LEFT OUTER JOIN entities p ON l.path = p.id
 	LEFT OUTER JOIN entities q ON l.query_string = q.id
 	LEFT OUTER JOIN entities r ON l.referrer = r.id
-	LEFT OUTER JOIN entities u ON l.user_agent = u.id;
+	LEFT OUTER JOIN entities u ON l.user_agent = u.id
+	LEFT OUTER JOIN entities c ON l.user_agent = c.id;
