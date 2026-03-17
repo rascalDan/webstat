@@ -54,7 +54,7 @@ namespace WebStat {
 		void parkLogLine(std::string_view);
 		void runJobsIdle();
 
-		void jobIngestParkedLines();
+		unsigned int jobIngestParkedLines();
 		unsigned int jobPurgeOldLogs();
 
 		template<typename... T> void storeLogLine(DB::Connection *, const std::tuple<T...> &) const;
@@ -70,9 +70,19 @@ namespace WebStat {
 		size_t linesParked = 0;
 		mutable std::flat_set<Crc32Value> existingEntities;
 
-		using JobLastRunTime = std::chrono::system_clock::time_point;
-		JobLastRunTime lastRunIngestParkedLines;
-		JobLastRunTime lastRunPurgeOldLogs;
+		struct Job {
+			using LastRunTime = std::chrono::system_clock::time_point;
+			using Impl = unsigned int (Ingestor::*)();
+
+			explicit Job(Impl impl) : impl(impl) { }
+
+			const Impl impl;
+			LastRunTime lastRun {LastRunTime::clock::now()};
+			std::optional<std::thread> currentRun {std::nullopt};
+		};
+
+		Job ingestParkedLines;
+		Job purgeOldLogs;
 
 	private:
 		static constexpr size_t MAX_NEW_ENTITIES = 6;

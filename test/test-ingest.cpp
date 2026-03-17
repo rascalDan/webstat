@@ -282,40 +282,54 @@ BOOST_AUTO_TEST_CASE(IngestParked, *boost::unit_test::depends_on("I/ParkLogLine"
 	BOOST_CHECK(!std::filesystem::exists(settings.fallbackDir / LOGLINE1_PARKED));
 }
 
-BOOST_AUTO_TEST_CASE(IngestParkedJob, *boost::unit_test::depends_on("I/IngestParked"))
+BOOST_AUTO_TEST_CASE(DefaultLaunchNoJobs)
 {
-	const auto now = JobLastRunTime::clock::now();
-	lastRunIngestParkedLines = now - 1s;
+	runJobsIdle();
+	BOOST_REQUIRE(!ingestParkedLines.currentRun);
+	BOOST_REQUIRE(!purgeOldLogs.currentRun);
+}
+
+BOOST_AUTO_TEST_CASE(IngestParkedJob,
+		*boost::unit_test::depends_on("I/IngestParked") * boost::unit_test::depends_on("I/DefaultLaunchNoJobs"))
+{
+	const auto now = Job::LastRunTime::clock::now();
+	ingestParkedLines.lastRun = now - 1s;
 	parkLogLine(LOGLINE1);
 
 	runJobsIdle();
+	BOOST_REQUIRE(!ingestParkedLines.currentRun);
 	BOOST_REQUIRE_EQUAL(linesParked, 1);
 	BOOST_REQUIRE_EQUAL(linesParsed, 0);
-	BOOST_CHECK_EQUAL(lastRunIngestParkedLines, now - 1s);
+	BOOST_CHECK_EQUAL(ingestParkedLines.lastRun, now - 1s);
 
-	lastRunIngestParkedLines = now - settings.freqIngestParkedLines + 2s;
+	ingestParkedLines.lastRun = now - settings.freqIngestParkedLines + 2s;
+	BOOST_REQUIRE(!ingestParkedLines.currentRun);
 	BOOST_REQUIRE_EQUAL(linesParked, 1);
 	BOOST_REQUIRE_EQUAL(linesParsed, 0);
-	BOOST_CHECK_EQUAL(lastRunIngestParkedLines, now - settings.freqIngestParkedLines + 2s);
+	BOOST_CHECK_EQUAL(ingestParkedLines.lastRun, now - settings.freqIngestParkedLines + 2s);
 
-	lastRunIngestParkedLines = now - settings.freqIngestParkedLines - 1s;
+	ingestParkedLines.lastRun = now - settings.freqIngestParkedLines - 1s;
 	runJobsIdle();
+	BOOST_REQUIRE(ingestParkedLines.currentRun);
+	ingestParkedLines.currentRun->join();
 	BOOST_CHECK_EQUAL(linesParsed, 1);
 	BOOST_CHECK_EQUAL(linesDiscarded, 0);
-	BOOST_CHECK_GE(lastRunIngestParkedLines, now);
+	BOOST_CHECK_GE(ingestParkedLines.lastRun, now);
 	BOOST_CHECK(!std::filesystem::exists(settings.fallbackDir / LOGLINE1_PARKED));
 }
 
 BOOST_AUTO_TEST_CASE(JobErrorRescheduler, *boost::unit_test::depends_on("I/IngestParkedJob"))
 {
-	const auto now = JobLastRunTime::clock::now();
-	lastRunIngestParkedLines = now - settings.freqIngestParkedLines - 1s;
+	const auto now = Job::LastRunTime::clock::now();
+	ingestParkedLines.lastRun = now - settings.freqIngestParkedLines - 1s;
 	parkLogLine(LOGLINE1);
 	std::filesystem::permissions(settings.fallbackDir / LOGLINE1_PARKED, std::filesystem::perms::owner_write);
 	runJobsIdle();
+	BOOST_REQUIRE(ingestParkedLines.currentRun);
+	ingestParkedLines.currentRun->join();
 	BOOST_CHECK(std::filesystem::exists(settings.fallbackDir / LOGLINE1_PARKED));
-	BOOST_CHECK_GE(lastRunIngestParkedLines, now - (settings.freqIngestParkedLines / 2) - 1s);
-	BOOST_CHECK_LE(lastRunIngestParkedLines, now - (settings.freqIngestParkedLines / 2) + 1s);
+	BOOST_CHECK_GE(ingestParkedLines.lastRun, now - (settings.freqIngestParkedLines / 2) - 1s);
+	BOOST_CHECK_LE(ingestParkedLines.lastRun, now - (settings.freqIngestParkedLines / 2) + 1s);
 }
 
 BOOST_AUTO_TEST_CASE(FetchMockUserAgentDetail)
