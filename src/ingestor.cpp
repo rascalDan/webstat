@@ -76,7 +76,8 @@ namespace WebStat {
 
 	Ingestor::Ingestor(const utsname & host, DB::ConnectionPoolPtr dbpl, IngestorSettings settings) :
 		settings {std::move(settings)}, dbpool {std::move(dbpl)}, ingestParkedLines {&Ingestor::jobIngestParkedLines},
-		purgeOldLogs {&Ingestor::jobPurgeOldLogs}, hostnameId {crc32(host.nodename)}, curl {curl_multi_init()}
+		purgeOldLogs {&Ingestor::jobPurgeOldLogs}, hostnameId {crc32(host.nodename)}, curl {curl_multi_init()},
+		mainThread {std::this_thread::get_id()}
 	{
 		auto dbconn = dbpool->get();
 		auto ins = dbconn->modify(SQL::HOST_UPSERT, SQL::HOST_UPSERT_OPTS);
@@ -347,7 +348,7 @@ namespace WebStat {
 					const auto & [entityId, type, value] = *entity;
 					const auto & [typeName, onInsert] = ENTITY_TYPE_VALUES[std::to_underlying(type)];
 					bindMany(insert, 0, entityId, typeName, value);
-					if (insert->execute() > 0 && onInsert) {
+					if (insert->execute() > 0 && onInsert && std::this_thread::get_id() == mainThread) {
 						std::invoke(onInsert, this, *entity);
 					}
 					return std::get<0>(*entity);

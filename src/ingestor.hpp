@@ -101,5 +101,6 @@ namespace WebStat {
 		uint32_t hostnameId;
 		CurlMultiPtr curl;
 		mutable CurlOperations curlOperations;
+		std::thread::id mainThread;
 	};
 }
