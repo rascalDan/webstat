@@ -223,17 +223,21 @@ namespace WebStat {
 	Ingestor::runJobsAsNeeded()
 	{
 		auto runJobAsNeeded = [this, now = Job::LastRunTime::clock::now()](Job & job, auto freq) {
-			if (!job.currentRun && expired(job.lastRun, freq, now)) {
-				job.currentRun.emplace([this, now, freq, &job]() {
+			if (job.currentRun) {
+				if (job.currentRun->valid()) {
 					try {
-						(this->*job.impl)();
+						job.currentRun->get();
 						job.lastRun = now;
 					}
 					catch (const std::exception &) {
 						// Error, retry in half the frequency
 						job.lastRun = now - (freq / 2);
 					}
-				});
+					job.currentRun.reset();
+				}
+			}
+			else if (expired(job.lastRun, freq, now)) {
+				job.currentRun.emplace(std::async(job.impl, this));
 			}
 		};
 		runJobAsNeeded(ingestParkedLines, settings.freqIngestParkedLines);

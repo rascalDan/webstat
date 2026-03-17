@@ -311,7 +311,9 @@ BOOST_AUTO_TEST_CASE(IngestParkedJob,
 	ingestParkedLines.lastRun = now - settings.freqIngestParkedLines - 1s;
 	runJobsAsNeeded();
 	BOOST_REQUIRE(ingestParkedLines.currentRun);
-	ingestParkedLines.currentRun->join();
+	ingestParkedLines.currentRun->wait();
+	runJobsAsNeeded();
+	BOOST_REQUIRE(!ingestParkedLines.currentRun);
 	BOOST_CHECK_EQUAL(linesParsed, 1);
 	BOOST_CHECK_EQUAL(linesDiscarded, 0);
 	BOOST_CHECK_GE(ingestParkedLines.lastRun, now);
@@ -326,7 +328,9 @@ BOOST_AUTO_TEST_CASE(JobErrorRescheduler, *boost::unit_test::depends_on("I/Inges
 	std::filesystem::permissions(settings.fallbackDir / LOGLINE1_PARKED, std::filesystem::perms::owner_write);
 	runJobsAsNeeded();
 	BOOST_REQUIRE(ingestParkedLines.currentRun);
-	ingestParkedLines.currentRun->join();
+	ingestParkedLines.currentRun->wait();
+	runJobsAsNeeded();
+	BOOST_REQUIRE(!ingestParkedLines.currentRun);
 	BOOST_CHECK(std::filesystem::exists(settings.fallbackDir / LOGLINE1_PARKED));
 	BOOST_CHECK_GE(ingestParkedLines.lastRun, now - (settings.freqIngestParkedLines / 2) - 1s);
 	BOOST_CHECK_LE(ingestParkedLines.lastRun, now - (settings.freqIngestParkedLines / 2) + 1s);

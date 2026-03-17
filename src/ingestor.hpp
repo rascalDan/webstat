@@ -8,6 +8,7 @@
 #include <connection_fwd.h>
 #include <cstdio>
 #include <flat_set>
+#include <future>
 #include <scn/scan.h>
 #include <span>
 #include <sys/utsname.h>
@@ -78,7 +79,7 @@ namespace WebStat {
 
 			const Impl impl;
 			LastRunTime lastRun {LastRunTime::clock::now()};
-			std::optional<std::thread> currentRun {std::nullopt};
+			std::optional<std::future<unsigned int>> currentRun;
 		};
 
 		Job::LastRunTime lastCheckedJobs {Job::LastRunTime::clock::now()};
