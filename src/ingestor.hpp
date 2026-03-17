@@ -23,7 +23,7 @@ namespace WebStat {
 		std::filesystem::path fallbackDir = "/var/log/webstat";
 		unsigned int dbMax = 4;
 		unsigned int dbKeep = 2;
-		int idleJobsAfter = duration_cast<milliseconds>(1min).count();
+		minutes checkJobsAfter = 1min;
 		minutes freqIngestParkedLines = 30min;
 		minutes freqPurgeOldLogs = 6h;
 		unsigned int purgeDaysToKeep = 61; // ~2 months
@@ -52,7 +52,7 @@ namespace WebStat {
 		void ingestLogLine(std::string_view);
 		void ingestLogLine(DB::Connection *, std::string_view);
 		void parkLogLine(std::string_view);
-		void runJobsIdle();
+		void runJobsAsNeeded();
 
 		unsigned int jobIngestParkedLines();
 		unsigned int jobPurgeOldLogs();
@@ -81,6 +81,7 @@ namespace WebStat {
 			std::optional<std::thread> currentRun {std::nullopt};
 		};
 
+		Job::LastRunTime lastCheckedJobs {Job::LastRunTime::clock::now()};
 		Job ingestParkedLines;
 		Job purgeOldLogs;
 

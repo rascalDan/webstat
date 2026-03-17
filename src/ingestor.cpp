@@ -135,8 +135,9 @@ namespace WebStat {
 	{
 		curl_waitfd logIn {.fd = fileno(input), .events = CURL_WAIT_POLLIN, .revents = 0};
 
-		for (int interesting = 0;
-				curl_multi_poll(curl.get(), &logIn, 1, settings.idleJobsAfter, &interesting) == CURLM_OK;) {
+		const auto curlTimeOut = static_cast<int>(
+				std::chrono::duration_cast<std::chrono::milliseconds>(settings.checkJobsAfter).count());
+		while (curl_multi_poll(curl.get(), &logIn, 1, curlTimeOut, nullptr) == CURLM_OK) {
 			if (logIn.revents) {
 				if (auto line = scn::scan<std::string>(input, "{:[^\n]}\n")) {
 					linesRead++;
@@ -146,8 +147,8 @@ namespace WebStat {
 					break;
 				}
 			}
-			else if (!interesting) {
-				runJobsIdle();
+			if (expiredThenSet(lastCheckedJobs, settings.checkJobsAfter)) {
+				runJobsAsNeeded();
 			}
 			if (!curlOperations.empty()) {
 				handleCurlOperations();
@@ -218,10 +219,10 @@ namespace WebStat {
 	}
 
 	void
-	Ingestor::runJobsIdle()
+	Ingestor::runJobsAsNeeded()
 	{
 		auto runJobAsNeeded = [this, now = Job::LastRunTime::clock::now()](Job & job, auto freq) {
-			if (!job.currentRun && job.lastRun + freq < now) {
+			if (!job.currentRun && expired(job.lastRun, freq, now)) {
 				job.currentRun.emplace([this, now, freq, &job]() {
 					try {
 						(this->*job.impl)();

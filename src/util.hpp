@@ -75,4 +75,24 @@ namespace WebStat {
 
 		return out;
 	}
+
+	template<typename Clock, typename Dur, typename Rep, typename Period>
+	bool
+	expired(const std::chrono::time_point<Clock, Dur> lastRun, const std::chrono::duration<Rep, Period> freq,
+			const typename Clock::time_point now = Clock::now())
+	{
+		return lastRun + freq < now;
+	}
+
+	template<typename Clock, typename Dur, typename Rep, typename Period>
+	bool
+	expiredThenSet(std::chrono::time_point<Clock, Dur> & lastRun, const std::chrono::duration<Rep, Period> freq,
+			const typename Clock::time_point now = Clock::now())
+	{
+		if (expired(lastRun, freq, now)) {
+			lastRun = now;
+			return true;
+		}
+		return false;
+	}
 }

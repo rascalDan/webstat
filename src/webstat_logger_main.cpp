@@ -55,8 +55,8 @@ main(int argc, char ** argv)
 		 "Number of write/read write DB connections to keep open")
 		("fallback.dir", po::value(&settings.fallbackDir)->default_value(settings.fallbackDir),
 		 "Path to write access logs to when the database is unavailable")
-		("jobs.idle", po::value(&settings.idleJobsAfter)->default_value(settings.idleJobsAfter),
-		 "Run idle when there's no activity for this period (ms)")
+		("jobs.check", po::value(&settings.checkJobsAfter)->default_value(settings.checkJobsAfter),
+		 "How often to check for jobs needing execution (mins)")
 		("job.parked.freq", po::value(&settings.freqIngestParkedLines)->default_value(settings.freqIngestParkedLines),
 		 "How often to check for and import parked log lines")
 		("job.purge.freq", po::value(&settings.freqPurgeOldLogs)->default_value(settings.freqPurgeOldLogs),
