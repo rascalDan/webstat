@@ -99,4 +99,4 @@ FROM
 	LEFT OUTER JOIN entities q ON l.query_string = q.id
 	LEFT OUTER JOIN entities r ON l.referrer = r.id
 	LEFT OUTER JOIN entities u ON l.user_agent = u.id
-	LEFT OUTER JOIN entities c ON l.user_agent = c.id;
+	LEFT OUTER JOIN entities c ON l.content_type = c.id;
