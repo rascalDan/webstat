@@ -37,9 +37,10 @@ CREATE TABLE entities(
 	value text NOT NULL,
 	type entity NOT NULL,
 	detail jsonb,
-	CONSTRAINT pk_entities PRIMARY KEY (id),
-	CONSTRAINT uni_entities_value UNIQUE (value)
+	CONSTRAINT pk_entities PRIMARY KEY (id)
 );
+
+CREATE UNIQUE INDEX uni_entities_value ON entities(MD5(value));
 
 CREATE TABLE access_log(
 	id bigint GENERATED ALWAYS AS IDENTITY,
