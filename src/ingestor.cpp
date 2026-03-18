@@ -247,14 +247,15 @@ namespace WebStat {
 	unsigned int
 	Ingestor::jobIngestParkedLines()
 	{
+		unsigned int count = 0;
 		for (auto pathIter = std::filesystem::directory_iterator {settings.fallbackDir};
 				pathIter != std::filesystem::directory_iterator {}; ++pathIter) {
 			if (scn::scan<Crc32Value>(pathIter->path().filename().string(), "parked-{}.log")) {
 				jobIngestParkedLine(pathIter);
+				count += 1;
 			}
 		}
-		// TODO return actual count
-		return 0;
+		return count;
 	}
 
 	void
