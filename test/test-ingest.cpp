@@ -249,6 +249,19 @@ BOOST_AUTO_TEST_CASE(StoreLog, *boost::unit_test::depends_on("I/StoreLogLine"))
 	BOOST_CHECK_EQUAL(linesDiscarded, 0);
 }
 
+BOOST_AUTO_TEST_CASE(TerminateHandler, *boost::unit_test::timeout(5))
+{
+	WebStat::FilePtr input {fopen("/dev/null", "r")};
+	BOOST_REQUIRE(input);
+	BOOST_REQUIRE(!terminated);
+	raise(SIGTERM);
+	BOOST_REQUIRE(terminated);
+	ingestLog(input.get());
+	BOOST_CHECK_EQUAL(linesRead, 0);
+	BOOST_CHECK_EQUAL(linesParsed, 0);
+	BOOST_CHECK_EQUAL(linesDiscarded, 0);
+}
+
 BOOST_AUTO_TEST_CASE(ParkLogLine)
 {
 	parkLogLine(LOGLINE1);

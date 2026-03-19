@@ -3,6 +3,7 @@
 #include "uaLookup.hpp"
 #include "util.hpp"
 #include <connection.h>
+#include <csignal>
 #include <dbTypes.h>
 #include <fstream>
 #include <modifycommand.h>
@@ -64,7 +65,10 @@ namespace WebStat {
 				return std::make_tuple(std::get<N>(ENTITY_TYPE_MAP)(std::get<N>(values))...);
 			}(std::make_index_sequence<VALUE_COUNT>());
 		}
+
 	}
+
+	Ingestor * Ingestor::currentIngestor = nullptr;
 
 	Ingestor::Ingestor(const utsname & host, IngestorSettings settings) :
 		Ingestor {host,
@@ -84,6 +88,31 @@ namespace WebStat {
 		bindMany(ins, 0, hostnameId, host.nodename, host.sysname, host.release, host.version, host.machine,
 				host.domainname);
 		ins->execute();
+
+		assert(!currentIngestor);
+		currentIngestor = this;
+		signal(SIGTERM, &sigtermHandler);
+	}
+
+	Ingestor::~Ingestor()
+	{
+		assert(currentIngestor);
+		signal(SIGTERM, SIG_DFL);
+		currentIngestor = nullptr;
+	}
+
+	void
+	Ingestor::sigtermHandler(int sigNo)
+	{
+		assert(currentIngestor);
+		currentIngestor->terminate(sigNo);
+	}
+
+	void
+	Ingestor::terminate(int)
+	{
+		terminated = true;
+		curl_multi_wakeup(curl.get());
 	}
 
 	Ingestor::ScanResult
@@ -138,7 +167,7 @@ namespace WebStat {
 
 		const auto curlTimeOut = static_cast<int>(
 				std::chrono::duration_cast<std::chrono::milliseconds>(settings.checkJobsAfter).count());
-		while (curl_multi_poll(curl.get(), &logIn, 1, curlTimeOut, nullptr) == CURLM_OK) {
+		while (!terminated && curl_multi_poll(curl.get(), &logIn, 1, curlTimeOut, nullptr) == CURLM_OK) {
 			if (logIn.revents) {
 				if (auto line = scn::scan<std::string>(input, "{:[^\n]}\n")) {
 					linesRead++;

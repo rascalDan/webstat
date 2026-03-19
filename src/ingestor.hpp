@@ -39,7 +39,7 @@ namespace WebStat {
 		Ingestor(const utsname &, IngestorSettings);
 		Ingestor(const utsname &, DB::ConnectionPoolPtr, IngestorSettings);
 
-		virtual ~Ingestor() = default;
+		virtual ~Ingestor();
 		SPECIAL_MEMBERS_DELETE(Ingestor);
 
 		using ScanResult = decltype(scn::scan<std::string_view, std::string_view, uint64_t, std::string_view,
@@ -63,6 +63,7 @@ namespace WebStat {
 		IngestorSettings settings;
 
 	protected:
+		static Ingestor * currentIngestor;
 		DB::ConnectionPoolPtr dbpool;
 
 		size_t linesRead = 0;
@@ -70,6 +71,8 @@ namespace WebStat {
 		size_t linesDiscarded = 0;
 		size_t linesParked = 0;
 		mutable std::flat_set<Crc32Value> existingEntities;
+
+		bool terminated = false;
 
 		struct Job {
 			using LastRunTime = std::chrono::system_clock::time_point;
@@ -97,6 +100,9 @@ namespace WebStat {
 
 		void jobIngestParkedLine(const std::filesystem::directory_iterator &);
 		void jobIngestParkedLine(const std::filesystem::path &, uintmax_t size);
+
+		static void sigtermHandler(int);
+		void terminate(int);
 
 		using CurlOperations = std::map<CURL *, std::unique_ptr<CurlOperation>>;
 		uint32_t hostnameId;
