@@ -24,6 +24,7 @@ namespace WebStat {
 		std::filesystem::path fallbackDir = "/var/log/webstat";
 		unsigned int dbMax = 4;
 		unsigned int dbKeep = 2;
+		size_t maxBatchSize = 1;
 		minutes checkJobsAfter = 1min;
 		minutes freqIngestParkedLines = 30min;
 		minutes freqPurgeOldLogs = 6h;
@@ -36,6 +37,7 @@ namespace WebStat {
 
 	class Ingestor {
 	public:
+		using LineBatch = std::vector<std::string>;
 		Ingestor(const utsname &, IngestorSettings);
 		Ingestor(const utsname &, DB::ConnectionPoolPtr, IngestorSettings);
 
@@ -50,9 +52,9 @@ namespace WebStat {
 		[[nodiscard]] static ScanResult scanLogLine(std::string_view);
 
 		void ingestLog(std::FILE *);
-		void ingestLogLine(std::string_view);
-		void ingestLogLine(DB::Connection *, std::string_view);
-		void parkLogLine(std::string_view);
+		void tryIngestQueuedLogLines();
+		void ingestLogLines(DB::Connection *, const LineBatch & lines);
+		void parkQueuedLogLines();
 		void runJobsAsNeeded();
 
 		unsigned int jobIngestParkedLines();
@@ -70,7 +72,8 @@ namespace WebStat {
 		size_t linesParsed = 0;
 		size_t linesDiscarded = 0;
 		size_t linesParked = 0;
-		mutable std::flat_set<Crc32Value> existingEntities;
+		std::flat_set<Crc32Value> existingEntities;
+		LineBatch queuedLines;
 
 		bool terminated = false;
 
@@ -98,8 +101,8 @@ namespace WebStat {
 		void onNewUserAgent(const Entity &) const;
 		void handleCurlOperations();
 
-		void jobIngestParkedLine(const std::filesystem::directory_iterator &);
-		void jobIngestParkedLine(const std::filesystem::path &, uintmax_t size);
+		void jobIngestParkedLines(const std::filesystem::path &);
+		void jobIngestParkedLines(FILE *, size_t count);
 
 		static void sigtermHandler(int);
 		void terminate(int);

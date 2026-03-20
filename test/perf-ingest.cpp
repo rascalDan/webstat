@@ -25,6 +25,7 @@ namespace {
 				std::make_shared<WebStat::MockDBPool>("webstat"),
 				{
 						.userAgentAPI = {},
+						.maxBatchSize = static_cast<size_t>(state.range(0)),
 				}};
 		for (auto loop : state) {
 			WebStat::FilePtr logFile {fopen(TMP_LOG.c_str(), "r")};
@@ -33,6 +34,6 @@ namespace {
 	}
 }
 
-BENCHMARK(doIngestFile)->Setup(setup);
+BENCHMARK_RANGE(doIngestFile, 1, 1024)->Setup(setup);
 
 BENCHMARK_MAIN();

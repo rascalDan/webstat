@@ -53,6 +53,8 @@ main(int argc, char ** argv)
 		 "Maximum number of concurrent write/read write DB connections")
 		("db.wr.keep", po::value(&settings.dbKeep)->default_value(settings.dbKeep),
 		 "Number of write/read write DB connections to keep open")
+		("db.maxBatchSize", po::value(&settings.maxBatchSize)->default_value(settings.maxBatchSize),
+		 "Maximum number of access log entries to hold in memory before writing them to the DB")
 		("fallback.dir", po::value(&settings.fallbackDir)->default_value(settings.fallbackDir),
 		 "Path to write access logs to when the database is unavailable")
 		("jobs.check", po::value(&settings.checkJobsAfter)->default_value(settings.checkJobsAfter),
