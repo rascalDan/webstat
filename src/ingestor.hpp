@@ -106,6 +106,7 @@ namespace WebStat {
 
 		static void sigtermHandler(int);
 		void terminate(int);
+		[[gnu::format(printf, 3, 4)]] virtual void log(int level, const char * msgfmt, ...) const = 0;
 
 		using CurlOperations = std::map<CURL *, std::unique_ptr<CurlOperation>>;
 		uint32_t hostnameId;

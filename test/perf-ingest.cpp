@@ -18,10 +18,19 @@ namespace {
 		static const WebStat::MockDB mockdb;
 	}
 
+	class PerfIngestor : public WebStat::Ingestor {
+		using Ingestor::Ingestor;
+
+		void
+		log(int, const char *, ...) const override
+		{
+		}
+	};
+
 	void
 	doIngestFile(benchmark::State & state)
 	{
-		WebStat::Ingestor ingestor {WebStat::getTestUtsName("perf-hostname"),
+		PerfIngestor ingestor {WebStat::getTestUtsName("perf-hostname"),
 				std::make_shared<WebStat::MockDBPool>("webstat"),
 				{
 						.userAgentAPI = {},

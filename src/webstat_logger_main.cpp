@@ -5,6 +5,7 @@
 #include <iostream>
 #include <pq-connection.h>
 #include <sys/utsname.h>
+#include <syslog.h>
 
 namespace {
 	[[nodiscard]]
@@ -17,6 +18,19 @@ namespace {
 		}
 		return uts;
 	}
+
+	class MainIngestor : public WebStat::Ingestor {
+		using Ingestor::Ingestor;
+
+		void
+		log(int level, const char * msgfmt, ...) const override
+		{
+			va_list args;
+			va_start(args, msgfmt);
+			vsyslog(level, msgfmt, args);
+			va_end(args);
+		}
+	};
 }
 
 #define LEXICAL_CAST_DURATION(UNIT) \
@@ -87,7 +101,7 @@ main(int argc, char ** argv)
 	po::notify(optVars);
 
 	try {
-		WebStat::Ingestor {getHostDetail(), std::move(settings)}.ingestLog(stdin);
+		MainIngestor {getHostDetail(), std::move(settings)}.ingestLog(stdin);
 		return EXIT_SUCCESS;
 	}
 	catch (const std::exception & excp) {

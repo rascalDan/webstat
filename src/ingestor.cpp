@@ -109,8 +109,9 @@ namespace WebStat {
 	}
 
 	void
-	Ingestor::terminate(int)
+	Ingestor::terminate(int sigNo)
 	{
+		log(LOG_NOTICE, "Caught sig %d, terminating", sigNo);
 		terminated = true;
 		curl_multi_wakeup(curl.get());
 	}
@@ -154,7 +155,7 @@ namespace WebStat {
 				}
 				else {
 					curlOperations.erase(msg->easy_handle);
-					std::println(std::cerr, "Failed to lookup CurlOperation");
+					log(LOG_WARNING, "Failed to lookup CurlOperation");
 				}
 			}
 		}
@@ -204,7 +205,8 @@ namespace WebStat {
 			ingestLogLines(dbpool->get().get(), queuedLines);
 			queuedLines.clear();
 		}
-		catch (const std::exception &) {
+		catch (const std::exception & excp) {
+			log(LOG_ERR, "Unhandled exception: %s, clearing known entity list", excp.what());
 			existingEntities.clear();
 		}
 	}
@@ -234,8 +236,12 @@ namespace WebStat {
 						DB::TransactionScope dbtx {*dbconn};
 						const auto uninsertableLine = ToEntity<EntityType::UninsertableLine> {}(line);
 						storeEntities(dbconn, {uninsertableLine});
+						log(LOG_NOTICE,
+								"Failed to store parsed line and/or associated entties, but did store raw line, %u:%s",
+								std::get<Crc32Value>(uninsertableLine), line.c_str());
 					}
-					catch (const std::exception &) {
+					catch (const std::exception & excp) {
+						log(LOG_NOTICE, "Failed to store line in any form, DB connection lost? %s", excp.what());
 						throw originalError;
 					}
 				}
@@ -243,6 +249,8 @@ namespace WebStat {
 			else {
 				linesDiscarded++;
 				const auto unparsableLine = ToEntity<EntityType::UnparsableLine> {}(line);
+				log(LOG_NOTICE, "Failed to parse line, this is a bug: %u:%s", std::get<Crc32Value>(unparsableLine),
+						line.c_str());
 				storeEntities(dbconn, {unparsableLine});
 			}
 		}
@@ -263,10 +271,13 @@ namespace WebStat {
 			if (fflush(parked.get()) == 0) {
 				linesParked += queuedLines.size();
 				queuedLines.clear();
+				return;
 			}
-			else {
-				std::filesystem::remove(path);
-			}
+			std::filesystem::remove(path);
+		}
+		log(LOG_ERR, "Failed to park %zu queued lines:", queuedLines.size());
+		for (const auto & line : queuedLines) {
+			log(LOG_ERR, "\t%.*s", static_cast<int>(line.length()), line.data());
 		}
 	}
 
@@ -280,7 +291,8 @@ namespace WebStat {
 						job.currentRun->get();
 						job.lastRun = now;
 					}
-					catch (const std::exception &) {
+					catch (const std::exception & excp) {
+						log(LOG_ERR, "Job run failed: %s", excp.what());
 						// Error, retry in half the frequency
 						job.lastRun = now - (freq / 2);
 					}

@@ -3,6 +3,7 @@
 #include <boost/test/unit_test.hpp>
 
 #include "testing-util.hpp"
+#include <cstdio>
 #include <selectcommandUtil.impl.h>
 
 #include <ingestor.hpp>
@@ -217,6 +218,18 @@ public:
 	}
 
 	SPECIAL_MEMBERS_DELETE(TestIngestor);
+
+	[[gnu::format(printf, 3, 4)]] void
+	log(int, const char * msgfmt, ...) const override
+	{
+		va_list args;
+		va_start(args, msgfmt);
+		std::unique_ptr<char, DeleteWith<&free>> msg;
+		BOOST_REQUIRE_GE(vasprintf(std::out_ptr(msg), msgfmt, args), 0);
+		va_end(args);
+		BOOST_REQUIRE(msg);
+		BOOST_TEST_MESSAGE(msg.get());
+	}
 };
 
 BOOST_FIXTURE_TEST_SUITE(I, TestIngestor);
