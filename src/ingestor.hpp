@@ -102,7 +102,7 @@ namespace WebStat {
 		void handleCurlOperations();
 
 		void jobIngestParkedLines(const std::filesystem::path &);
-		void jobIngestParkedLines(FILE *, size_t count);
+		size_t jobIngestParkedLines(FILE *, size_t count);
 
 		static void sigtermHandler(int);
 		void terminate(int);
