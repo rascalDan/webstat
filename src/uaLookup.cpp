@@ -5,7 +5,7 @@
 #include <modifycommand.h>
 
 namespace WebStat {
-	UserAgentLookupOperation::UserAgentLookupOperation(Crc32Value entityId) : entityId {entityId} { }
+	UserAgentLookupOperation::UserAgentLookupOperation(Crc32Value userAgentEntityId) : entityId {userAgentEntityId} { }
 
 	void
 	UserAgentLookupOperation::whenComplete(DB::Connection * dbconn) const

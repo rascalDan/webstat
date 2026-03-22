@@ -10,7 +10,7 @@
 namespace WebStat {
 	class CurlError : public std::runtime_error {
 	public:
-		explicit CurlError(CURLcode code, const char * msg) : std::runtime_error {msg}, code(code) { }
+		explicit CurlError(CURLcode errorCode, const char * msg) : std::runtime_error {msg}, code(errorCode) { }
 
 		CURLcode code;
 	};

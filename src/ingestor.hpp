@@ -81,7 +81,7 @@ namespace WebStat {
 			using LastRunTime = std::chrono::system_clock::time_point;
 			using Impl = unsigned int (Ingestor::*)();
 
-			explicit Job(Impl impl) : impl(impl) { }
+			explicit Job(Impl jobImpl) : impl(jobImpl) { }
 
 			const Impl impl;
 			LastRunTime lastRun {LastRunTime::clock::now()};

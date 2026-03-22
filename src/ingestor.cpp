@@ -43,8 +43,8 @@ namespace WebStat {
 			std::optional<Entity>
 			operator()(const std::optional<T> & value) const
 			{
-				return value.transform([this](auto && value) {
-					return (*this)(value);
+				return value.transform([this](auto && contained) {
+					return (*this)(contained);
 				});
 			}
 		};
@@ -69,18 +69,18 @@ namespace WebStat {
 
 	Ingestor * Ingestor::currentIngestor = nullptr;
 
-	Ingestor::Ingestor(const utsname & host, IngestorSettings settings) :
+	Ingestor::Ingestor(const utsname & host, IngestorSettings givenSettings) :
 		Ingestor {host,
 				std::make_shared<DB::ConnectionPool>(
-						settings.dbMax, settings.dbKeep, settings.dbType, settings.dbConnStr),
-				std::move(settings)}
+						givenSettings.dbMax, givenSettings.dbKeep, givenSettings.dbType, givenSettings.dbConnStr),
+				std::move(givenSettings)}
 	{
 	}
 
-	Ingestor::Ingestor(const utsname & host, DB::ConnectionPoolPtr dbpl, IngestorSettings settings) :
-		settings {std::move(settings)}, dbpool {std::move(dbpl)}, ingestParkedLines {&Ingestor::jobIngestParkedLines},
-		purgeOldLogs {&Ingestor::jobPurgeOldLogs}, hostnameId {crc32(host.nodename)}, curl {curl_multi_init()},
-		mainThread {std::this_thread::get_id()}
+	Ingestor::Ingestor(const utsname & host, DB::ConnectionPoolPtr dbpl, IngestorSettings givenSettings) :
+		settings {std::move(givenSettings)}, dbpool {std::move(dbpl)},
+		ingestParkedLines {&Ingestor::jobIngestParkedLines}, purgeOldLogs {&Ingestor::jobPurgeOldLogs},
+		hostnameId {crc32(host.nodename)}, curl {curl_multi_init()}, mainThread {std::this_thread::get_id()}
 	{
 		auto dbconn = dbpool->get();
 		auto ins = dbconn->modify(SQL::HOST_UPSERT, SQL::HOST_UPSERT_OPTS);
@@ -337,7 +337,7 @@ namespace WebStat {
 	void
 	Ingestor::jobIngestParkedLines(FILE * lines, size_t count)
 	{
-		for (size_t line = 0; line < count; ++line) {
+		for (size_t lineNo = 0; lineNo < count; ++lineNo) {
 			if (auto line = scn::scan<std::string>(lines, "{:[^\n]}\n")) {
 				linesRead++;
 				queuedLines.emplace_back(std::move(line->value()));
@@ -376,9 +376,9 @@ namespace WebStat {
 		auto next = rtn.begin();
 		visit(
 				[this, &next]<typename X>(const X & entity) {
-					auto addNewIfReqd = [&next, this](auto && entity) mutable {
-						if (!existingEntities.contains(std::get<0>(entity))) {
-							*next++ = entity;
+					auto addNewIfReqd = [&next, this](auto && entityToAdd) mutable {
+						if (!existingEntities.contains(std::get<0>(entityToAdd))) {
+							*next++ = entityToAdd;
 						}
 						return 0;
 					};
