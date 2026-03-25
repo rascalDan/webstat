@@ -64,14 +64,20 @@ namespace WebStat {
 
 		IngestorSettings settings;
 
+		struct Stats {
+			size_t linesRead;
+			size_t linesParsed;
+			size_t linesParseFailed;
+			size_t logsInserted;
+			size_t entitiesInserted;
+			constexpr bool operator==(const Ingestor::Stats &) const = default;
+		};
+
 	protected:
 		static Ingestor * currentIngestor;
 		DB::ConnectionPoolPtr dbpool;
+		mutable Stats stats {};
 
-		size_t linesRead = 0;
-		size_t linesParsed = 0;
-		size_t linesDiscarded = 0;
-		size_t linesParked = 0;
 		std::flat_set<Crc32Value> existingEntities;
 		LineBatch queuedLines;
 
@@ -100,12 +106,16 @@ namespace WebStat {
 		template<typename... T> NewEntities newEntities(const std::tuple<T...> &) const;
 		void onNewUserAgent(const Entity &) const;
 		void handleCurlOperations();
+		void logStats() const;
+		void clearStats();
 
 		void jobIngestParkedLines(const std::filesystem::path &);
 		size_t jobIngestParkedLines(FILE *, size_t count);
 
 		static void sigtermHandler(int);
 		void terminate(int);
+		static void sigusr1Handler(int);
+		static void sigusr2Handler(int);
 		[[gnu::format(printf, 3, 4)]] virtual void log(int level, const char * msgfmt, ...) const = 0;
 
 		using CurlOperations = std::map<CURL *, std::unique_ptr<CurlOperation>>;
