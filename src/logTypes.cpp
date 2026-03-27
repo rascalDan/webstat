@@ -1,10 +1,8 @@
 #include "logTypes.hpp"
 
-namespace scn {
-	scan_expected<typename ContextType::iterator>
-	scanner<WebStat::QuotedString>::scan(WebStat::QuotedString & value, ContextType & ctx)
-	{
-		static constexpr auto BS_MAP = []() {
+namespace {
+	namespace {
+		constexpr auto BS_MAP = []() {
 			std::array<char, 128> map {};
 			map['f'] = '\f';
 			map['n'] = '\n';
@@ -16,18 +14,10 @@ namespace scn {
 			return map;
 		}();
 
-		if (auto empty = scn::scan<>(ctx.range(), R"("")")) {
-			return empty->begin();
-		}
-
-		auto simple = scn::scan<std::string>(ctx.range(), R"("{:[^\"]}")");
-		if (simple) {
-			value = std::move(simple->value());
-			return simple->begin();
-		}
-
-		if (auto openQuote = scn::scan<>(ctx.range(), R"(")")) {
-			ctx.advance_to(openQuote->begin());
+		scn::scan_expected<typename scn::ContextType::iterator>
+		parseEscapedString(std::string & value, scn::ContextType & ctx, const auto & start)
+		{
+			ctx.advance_to(start->begin());
 			while (true) {
 				if (auto closeQuote = scn::scan<>(ctx.range(), R"(")")) {
 					return closeQuote->begin();
@@ -45,9 +35,30 @@ namespace scn {
 					ctx.advance_to(escaped->begin());
 				}
 				else {
-					return unexpected(simple.error());
+					return scn::unexpected(start.error());
 				}
 			}
+			return scn::unexpected(start.error());
+		}
+	}
+}
+
+namespace scn {
+	scan_expected<typename ContextType::iterator>
+	scanner<WebStat::QuotedString>::scan(WebStat::QuotedString & value, ContextType & ctx)
+	{
+		if (auto empty = scn::scan<>(ctx.range(), R"("")")) {
+			return empty->begin();
+		}
+
+		auto simple = scn::scan<std::string>(ctx.range(), R"("{:[^\"]}")");
+		if (simple) {
+			value = std::move(simple->value());
+			return simple->begin();
+		}
+
+		if (auto openQuote = scn::scan<>(ctx.range(), R"(")")) {
+			return parseEscapedString(value, ctx, openQuote);
 		}
 		return unexpected(simple.error());
 	}
@@ -59,17 +70,17 @@ namespace scn {
 			return null->begin();
 		}
 
-		if (auto empty = scn::scan<>(ctx.range(), R"("?")")) {
+		auto empty = scn::scan<>(ctx.range(), R"("?")");
+		if (empty) {
 			value.emplace();
 			return empty->begin();
 		}
 
-		auto result = scn::scan<std::string>(ctx.range(), R"("?{:[^"]}")");
-		if (!result) {
-			return unexpected(result.error());
+		if (auto openQuoteQM = scn::scan<>(ctx.range(), R"("?)")) {
+			value.emplace();
+			return parseEscapedString(*value, ctx, openQuoteQM);
 		}
-		value = std::move(result->value());
-		return result->begin();
+		return unexpected(empty.error());
 	}
 
 	scan_expected<typename ContextType::iterator>

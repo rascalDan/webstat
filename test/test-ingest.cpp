@@ -202,6 +202,17 @@ BOOST_AUTO_TEST_CASE(ExtractFieldsEdgeCasesUnparsable3603068405)
 	BOOST_CHECK_EQUAL(std::get<4>(result->values()), R"LOG(/packages/dev-php/pecl-uploadprogress'yqFSRA<'">yuezhx)LOG");
 }
 
+BOOST_AUTO_TEST_CASE(ExtractFieldsEdgeCasesUnparsable3482917779)
+{
+	const auto result = WebStat::Ingestor::scanLogLine(
+			R"LOG(195.166.151.214 62.171.174.195 1774536220216585 GET "/index.php" "?lang=../../../../../../../../usr/local/lib/php/pearcmd&+config-create+/&/<?echo(md5(\"hi\"));?>+/tmp/index1.php" HTTP/1.1 404 376 5811 "-" "libredtail-http" "text/html")LOG");
+	BOOST_REQUIRE(result);
+	const auto queryString = std::get<5>(result->values());
+	BOOST_REQUIRE(queryString);
+	BOOST_CHECK_EQUAL(*queryString,
+			R"LOG(lang=../../../../../../../../usr/local/lib/php/pearcmd&+config-create+/&/<?echo(md5("hi"));?>+/tmp/index1.php)LOG");
+}
+
 class TestIngestor : public WebStat::Ingestor {
 public:
 	TestIngestor() :
