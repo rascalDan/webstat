@@ -155,7 +155,6 @@ BOOST_DATA_TEST_CASE(CLFStringsBad,
 
 constexpr std::string_view LOGLINE1
 		= R"LOG(git.randomdan.homeip.net 98.82.40.168 1755561576768318 GET "/repo/gentoobrowse-api/commit/gentoobrowse-api/unittests/fixtures/756569aa764177340726dd3d40b41d89b11b20c7/app-crypt/pdfcrack/Manifest" "?h=gentoobrowse-api-0.9.1&id=a2ed3fd30333721accd4b697bfcb6cc4165c7714" HTTP/1.1 200 1884 107791 "-" "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Amazonbot/0.1; +https://developer.amazon.com/support/amazonbot) Chrome/119.0.6045.214 Safari/537.36" "test/plain")LOG";
-constexpr std::string_view LOGLINE1_PARKED = "parked-237093379.log";
 constexpr std::string_view LOGLINE2
 		= R"LOG(www.randomdan.homeip.net 43.128.84.166 1755561575973204 GET "/app-dicts/myspell-et/Manifest" "" HTTP/1.1 200 312 10369 "https://google.com" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36" "image/png")LOG";
 
@@ -298,11 +297,11 @@ BOOST_AUTO_TEST_CASE(ParkLogLine)
 {
 	queuedLines.emplace_back(LOGLINE1);
 	queuedLines.emplace_back(LOGLINE2);
-	parkQueuedLogLines();
-	const auto path = settings.fallbackDir / LOGLINE1_PARKED;
-	BOOST_TEST_INFO(path);
-	BOOST_REQUIRE(std::filesystem::exists(path));
-	BOOST_CHECK_EQUAL(std::filesystem::file_size(path), LOGLINE1.length() + LOGLINE2.length() + 4);
+	const auto path = parkQueuedLogLines();
+	BOOST_REQUIRE(path);
+	BOOST_TEST_INFO(*path);
+	BOOST_REQUIRE(std::filesystem::exists(*path));
+	BOOST_CHECK_EQUAL(std::filesystem::file_size(*path), LOGLINE1.length() + LOGLINE2.length() + 4);
 }
 
 BOOST_AUTO_TEST_CASE(ParkLogLineOnError, *boost::unit_test::depends_on("I/ParkLogLine"))
@@ -318,11 +317,12 @@ BOOST_AUTO_TEST_CASE(IngestParked, *boost::unit_test::depends_on("I/ParkLogLine"
 {
 	queuedLines.emplace_back(LOGLINE1);
 	queuedLines.emplace_back(LOGLINE2);
-	parkQueuedLogLines();
+	BOOST_REQUIRE(parkQueuedLogLines());
+	BOOST_CHECK(!std::filesystem::is_empty(settings.fallbackDir));
 	BOOST_REQUIRE(queuedLines.empty());
 	jobIngestParkedLines();
 	BOOST_CHECK_EQUAL(queuedLines.size(), 2);
-	BOOST_CHECK(!std::filesystem::exists(settings.fallbackDir / LOGLINE1_PARKED));
+	BOOST_CHECK(std::filesystem::is_empty(settings.fallbackDir));
 }
 
 BOOST_AUTO_TEST_CASE(DefaultLaunchNoJobs)
@@ -338,21 +338,22 @@ BOOST_AUTO_TEST_CASE(IngestParkedJob,
 	const auto now = Job::LastRunTime::clock::now();
 	ingestParkedLines.lastRun = now - 1s;
 	queuedLines.emplace_back(LOGLINE1);
-	parkQueuedLogLines();
+	const auto path = parkQueuedLogLines();
+	BOOST_REQUIRE(path);
 	BOOST_REQUIRE(queuedLines.empty());
-	BOOST_REQUIRE(std::filesystem::exists(settings.fallbackDir / LOGLINE1_PARKED));
+	BOOST_REQUIRE(std::filesystem::exists(*path));
 
 	runJobsAsNeeded();
 	BOOST_REQUIRE(!ingestParkedLines.currentRun);
 	BOOST_CHECK(queuedLines.empty());
-	BOOST_CHECK(std::filesystem::exists(settings.fallbackDir / LOGLINE1_PARKED));
+	BOOST_CHECK(std::filesystem::exists(*path));
 	BOOST_CHECK_EQUAL(ingestParkedLines.lastRun, now - 1s);
 
 	ingestParkedLines.lastRun = now - settings.freqIngestParkedLines + 2s;
 	runJobsAsNeeded();
 	BOOST_REQUIRE(!ingestParkedLines.currentRun);
 	BOOST_CHECK(queuedLines.empty());
-	BOOST_CHECK(std::filesystem::exists(settings.fallbackDir / LOGLINE1_PARKED));
+	BOOST_CHECK(std::filesystem::exists(*path));
 	BOOST_CHECK_EQUAL(ingestParkedLines.lastRun, now - settings.freqIngestParkedLines + 2s);
 
 	ingestParkedLines.lastRun = now - settings.freqIngestParkedLines - 1s;
@@ -363,7 +364,7 @@ BOOST_AUTO_TEST_CASE(IngestParkedJob,
 	BOOST_REQUIRE(!ingestParkedLines.currentRun);
 	BOOST_CHECK_EQUAL(queuedLines.size(), 1);
 	BOOST_CHECK_GE(ingestParkedLines.lastRun, now);
-	BOOST_CHECK(!std::filesystem::exists(settings.fallbackDir / LOGLINE1_PARKED));
+	BOOST_CHECK(!std::filesystem::exists(*path));
 }
 
 BOOST_AUTO_TEST_CASE(JobErrorRescheduler, *boost::unit_test::depends_on("I/IngestParkedJob"))
@@ -371,14 +372,15 @@ BOOST_AUTO_TEST_CASE(JobErrorRescheduler, *boost::unit_test::depends_on("I/Inges
 	const auto now = Job::LastRunTime::clock::now();
 	ingestParkedLines.lastRun = now - settings.freqIngestParkedLines - 1s;
 	queuedLines.emplace_back(LOGLINE1);
-	parkQueuedLogLines();
-	std::filesystem::permissions(settings.fallbackDir / LOGLINE1_PARKED, std::filesystem::perms::owner_write);
+	const auto path = parkQueuedLogLines();
+	BOOST_REQUIRE(path);
+	std::filesystem::permissions(*path, std::filesystem::perms::owner_write);
 	runJobsAsNeeded();
 	BOOST_REQUIRE(ingestParkedLines.currentRun);
 	ingestParkedLines.currentRun->wait();
 	runJobsAsNeeded();
 	BOOST_REQUIRE(!ingestParkedLines.currentRun);
-	BOOST_CHECK(std::filesystem::exists(settings.fallbackDir / LOGLINE1_PARKED));
+	BOOST_CHECK(std::filesystem::exists(*path));
 	BOOST_CHECK_GE(ingestParkedLines.lastRun, now - (settings.freqIngestParkedLines / 2) - 1s);
 	BOOST_CHECK_LE(ingestParkedLines.lastRun, now - (settings.freqIngestParkedLines / 2) + 1s);
 }

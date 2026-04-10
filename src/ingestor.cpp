@@ -275,11 +275,11 @@ namespace WebStat {
 		}
 	}
 
-	void
+	std::expected<std::filesystem::path, int>
 	Ingestor::parkQueuedLogLines()
 	{
 		if (queuedLines.empty()) {
-			return;
+			return std::unexpected(0);
 		}
 		const std::filesystem::path path {
 				settings.fallbackDir / std::format("parked-{}.short", crc32(queuedLines.front()))};
@@ -290,16 +290,19 @@ namespace WebStat {
 			}
 			if (fflush(parked.get()) == 0) {
 				queuedLines.clear();
-				auto finalPath = auto {path}.replace_extension(".log");
+				auto finalPath = std::filesystem::path {path}.replace_extension(".log");
+				parked.reset();
 				if (rename(path.c_str(), finalPath.c_str()) == 0) {
-					return;
+					return finalPath;
 				}
 			}
 		}
+		const int err = errno;
 		log(LOG_ERR, "Failed to park %zu queued lines:", queuedLines.size());
 		for (const auto & line : queuedLines) {
 			log(LOG_ERR, "\t%.*s", static_cast<int>(line.length()), line.data());
 		}
+		return std::unexpected(err);
 	}
 
 	void
@@ -334,7 +337,7 @@ namespace WebStat {
 		unsigned int count = 0;
 		for (auto pathIter = std::filesystem::directory_iterator {settings.fallbackDir};
 				pathIter != std::filesystem::directory_iterator {}; ++pathIter) {
-			if (scn::scan<Crc32Value>(pathIter->path().filename().string(), "parked-{}.log")) {
+			if (scn::scan<std::string>(pathIter->path().filename().string(), "parked-{:[a-zA-Z0-9]}.log")) {
 				jobIngestParkedLines(pathIter->path());
 				count += 1;
 			}

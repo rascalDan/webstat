@@ -7,6 +7,7 @@
 #include <connectionPool.h>
 #include <connection_fwd.h>
 #include <cstdio>
+#include <expected>
 #include <flat_set>
 #include <future>
 #include <scn/scan.h>
@@ -54,7 +55,7 @@ namespace WebStat {
 		void ingestLog(std::FILE *);
 		void tryIngestQueuedLogLines();
 		void ingestLogLines(DB::Connection *, const LineBatch & lines);
-		void parkQueuedLogLines();
+		std::expected<std::filesystem::path, int> parkQueuedLogLines();
 		void runJobsAsNeeded();
 
 		unsigned int jobIngestParkedLines();
