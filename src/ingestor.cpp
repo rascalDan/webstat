@@ -24,6 +24,32 @@ namespace DB {
 
 namespace WebStat {
 	namespace {
+		using ByteArrayView = std::span<const uint8_t>;
+
+		auto
+		bytesToHexRange(const ByteArrayView bytes)
+		{
+			constexpr auto HEXN = 16ZU;
+			return bytes | std::views::transform([](auto byte) {
+				return std::array {byte / HEXN, byte % HEXN};
+			}) | std::views::join
+					| std::views::transform([](auto nibble) {
+						  return "0123456789abcdef"[nibble];
+					  });
+		}
+
+		EntityHash
+		makeHash(const std::string_view value)
+		{
+			MD5_CTX ctx {};
+			MD5Init(&ctx);
+			// NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast) - correct for md5ing raw bytes
+			MD5Update(&ctx, reinterpret_cast<const uint8_t *>(value.data()), value.length());
+			EntityHash hash {};
+			MD5Final(hash.data(), &ctx);
+			return hash;
+		}
+
 		Crc32Value
 		crc32(const std::string_view value)
 		{
@@ -281,8 +307,8 @@ namespace WebStat {
 		if (queuedLines.empty()) {
 			return std::unexpected(0);
 		}
-		const std::filesystem::path path {
-				settings.fallbackDir / std::format("parked-{}.short", crc32(queuedLines.front()))};
+		const std::filesystem::path path {settings.fallbackDir
+				/ std::format("parked-{:s}.short", bytesToHexRange(makeHash(queuedLines.front())))};
 		if (auto parked = FilePtr(fopen(path.c_str(), "w"))) {
 			fprintf(parked.get(), "%zu\n", queuedLines.size());
 			for (const auto & line : queuedLines) {

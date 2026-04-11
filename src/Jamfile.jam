@@ -4,6 +4,7 @@ lib webstat : [ glob *.cpp : *_main.cpp ] :
 	<library>..//dbppcore
 	<library>../thirdparty//scn
 	<library>..//z
+	<library>..//md
 	<library>..//curl
 	: :
 	<include>.

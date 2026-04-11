@@ -13,6 +13,7 @@ lib adhocutil : : <link>shared : : <include>/usr/include/adhocutil <library>glib
 lib dbppcore : : <link>shared : : <include>/usr/include/dbpp <library>adhocutil ;
 lib dbpp-postgresql : : <link>shared : : <include>/usr/include/dbpp-postgresql <library>dbppcore ;
 lib z : : <link>shared ;
+lib md : : <link>shared ;
 
 project webstat : requirements
 	<cxxstd>26
