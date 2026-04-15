@@ -19,7 +19,7 @@ namespace DB {
 	// NOLINTNEXTLINE(readability-inconsistent-declaration-parameter-name)
 	DB::Command::bindParam(unsigned int idx, const WebStat::Entity & entity)
 	{
-		bindParamI(idx, std::get<1>(entity));
+		bindParamI(idx, entity.id);
 	}
 }
 
@@ -55,7 +55,12 @@ namespace WebStat {
 			Entity
 			operator()(const std::string_view value) const
 			{
-				return {makeHash(value), std::nullopt, Type, value};
+				return {
+						.hash = makeHash(value),
+						.id = std::nullopt,
+						.type = Type,
+						.value = value,
+				};
 			}
 
 			template<typename T>
@@ -283,7 +288,7 @@ namespace WebStat {
 	Ingestor::ingestLogLines(DB::Connection * dbconn, const LineBatch & lines)
 	{
 		auto entityIds = std::views::transform([](auto && value) {
-			return std::make_pair(std::get<0>(*value), *std::get<1>(*value));
+			return std::make_pair(value->hash, *value->id);
 		});
 
 		DB::TransactionScope batchTx {*dbconn};
@@ -306,7 +311,7 @@ namespace WebStat {
 						storeNewEntity(dbconn, uninsertableLine);
 						log(LOG_NOTICE,
 								"Failed to store parsed line and/or associated entties, but did store raw line, %u:%s",
-								*std::get<1>(uninsertableLine), line.c_str());
+								*uninsertableLine.id, line.c_str());
 					}
 					catch (const std::exception & excp) {
 						log(LOG_NOTICE, "Failed to store line in any form, DB connection lost? %s", excp.what());
@@ -318,8 +323,7 @@ namespace WebStat {
 				stats.linesParseFailed++;
 				auto unparsableLine = ToEntity<EntityType::UnparsableLine> {}(line);
 				storeNewEntity(dbconn, unparsableLine);
-				log(LOG_NOTICE, "Failed to parse line, this is a bug: %u:%s", *std::get<1>(unparsableLine),
-						line.c_str());
+				log(LOG_NOTICE, "Failed to parse line, this is a bug: %u:%s", *unparsableLine.id, line.c_str());
 			}
 		}
 	}
@@ -453,8 +457,8 @@ namespace WebStat {
 	Ingestor::fillKnownEntities(const std::span<Entity *> entities) const
 	{
 		for (const auto entity : entities) {
-			if (auto existing = existingEntities.find(std::get<0>(*entity)); existing != existingEntities.end()) {
-				std::get<1>(*entity) = existing->second;
+			if (auto existing = existingEntities.find(entity->hash); existing != existingEntities.end()) {
+				entity->id = existing->second;
 			}
 		}
 	}
@@ -463,8 +467,9 @@ namespace WebStat {
 	Ingestor::storeNewEntities(DB::Connection * dbconn, const std::span<Entity *> entities) const
 	{
 		for (const auto entity : entities) {
-			if (!std::get<1>(*entity)) {
+			if (!entity->id) {
 				storeNewEntity(dbconn, *entity);
+				assert(entity->id);
 			}
 		}
 	}
@@ -485,10 +490,9 @@ namespace WebStat {
 						{"content_type", nullptr},
 				}};
 
-		auto & [entityHash, entityId, type, value] = entity;
-		assert(!entityId);
-		const auto & [typeName, onInsert] = ENTITY_TYPE_VALUES[std::to_underlying(type)];
-		entityId = insert(dbconn, SQL::ENTITY_INSERT, SQL::ENTITY_INSERT_OPTS, value, typeName);
+		assert(!entity.id);
+		const auto & [typeName, onInsert] = ENTITY_TYPE_VALUES[std::to_underlying(entity.type)];
+		entity.id = insert(dbconn, SQL::ENTITY_INSERT, SQL::ENTITY_INSERT_OPTS, entity.value, typeName);
 		if (onInsert && std::this_thread::get_id() == mainThread) {
 			std::invoke(onInsert, this, entity);
 		}

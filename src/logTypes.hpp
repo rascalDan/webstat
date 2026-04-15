@@ -37,7 +37,13 @@ namespace WebStat {
 
 	using EntityId = int32_t;
 	using EntityHash = std::array<uint8_t, MD5_DIGEST_LENGTH>;
-	using Entity = std::tuple<EntityHash, std::optional<EntityId>, EntityType, std::string_view>;
+
+	struct Entity {
+		EntityHash hash;
+		std::optional<EntityId> id;
+		EntityType type;
+		std::string_view value;
+	};
 }
 
 namespace scn {
