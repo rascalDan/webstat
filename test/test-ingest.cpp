@@ -406,10 +406,10 @@ BOOST_AUTO_TEST_CASE(DiscardUnparsable)
 	BOOST_REQUIRE_NO_THROW(tryIngestQueuedLogLines());
 	auto dbconn = dbpool->get();
 	auto select = dbconn->select("SELECT id::bigint, value FROM entities WHERE type = 'unparsable_line'");
-	constexpr std::array<std::tuple<Crc32Value, std::string_view>, 1> EXPECTED {{
-			{1664299262, "does not parse"},
+	constexpr std::array<std::tuple<EntityId, std::string_view>, 1> EXPECTED {{
+			{18, "does not parse"},
 	}};
-	auto rows = select->as<Crc32Value, std::string_view>();
+	auto rows = select->as<EntityId, std::string_view>();
 	BOOST_CHECK_EQUAL_COLLECTIONS(rows.begin(), rows.end(), EXPECTED.begin(), EXPECTED.end());
 	BOOST_CHECK_EQUAL(stats.linesParseFailed, 1);
 	BOOST_CHECK_EQUAL(stats.entitiesInserted, 1);

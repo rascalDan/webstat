@@ -1,5 +1,6 @@
 #include "sql.hpp"
 #include <command.h>
+#include <dbpp-postgresql/pq-command.h>
 
 namespace WebStat::SQL {
 	// ccache doesn't play nicely with #embed
@@ -22,7 +23,8 @@ namespace WebStat::SQL {
 #embed "sql/hostUpsert.sql"
 	};
 #define HASH_OPTS(VAR) \
-	const DB::CommandOptionsPtr VAR##_OPTS = std::make_shared<DB::CommandOptions>(std::hash<std::string> {}(VAR))
+	const DB::CommandOptionsPtr VAR##_OPTS \
+			= std::make_shared<PQ::CommandOptions>(std::hash<std::string> {}(VAR), 35, false)
 	HASH_OPTS(ACCESS_LOG_INSERT);
 	HASH_OPTS(ACCESS_LOG_PURGE_OLD);
 	HASH_OPTS(ENTITY_INSERT);

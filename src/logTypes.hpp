@@ -35,9 +35,9 @@ namespace WebStat {
 		ContentType,
 	};
 
-	using Crc32Value = uint32_t;
+	using EntityId = int32_t;
 	using EntityHash = std::array<uint8_t, MD5_DIGEST_LENGTH>;
-	using Entity = std::tuple<Crc32Value, EntityType, std::string_view>;
+	using Entity = std::tuple<EntityHash, std::optional<EntityId>, EntityType, std::string_view>;
 }
 
 namespace scn {
