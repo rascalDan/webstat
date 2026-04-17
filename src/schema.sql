@@ -33,7 +33,7 @@ CREATE TYPE entity AS ENUM(
 );
 
 CREATE TABLE entities(
-	id int GENERATED ALWAYS AS IDENTITY,
+	id integer GENERATED ALWAYS AS IDENTITY,
 	value text NOT NULL,
 	type entity NOT NULL,
 	detail jsonb,
@@ -43,11 +43,11 @@ CREATE TABLE entities(
 CREATE UNIQUE INDEX uni_entities_value ON entities(MD5(value));
 
 CREATE OR REPLACE FUNCTION entity(newValue text, newType entity)
-	RETURNS int
+	RETURNS integer
 	AS $$
 DECLARE
 	now timestamp without time zone;
-	recid int;
+	recid integer;
 BEGIN
 	IF newValue IS NULL THEN
 		RETURN NULL;
@@ -83,20 +83,20 @@ RETURNS NULL ON NULL INPUT;
 
 CREATE TABLE access_log(
 	id bigint GENERATED ALWAYS AS IDENTITY,
-	hostname int NOT NULL,
-	virtual_host int NOT NULL,
+	hostname integer NOT NULL,
+	virtual_host integer NOT NULL,
 	remoteip inet NOT NULL,
 	request_time timestamp(6) NOT NULL,
 	method http_verb NOT NULL,
 	protocol protocol NOT NULL,
-	path int NOT NULL,
-	query_string int,
+	path integer NOT NULL,
+	query_string integer,
 	status smallint NOT NULL,
-	size int NOT NULL,
+	size integer NOT NULL,
 	duration interval second(6) NOT NULL,
-	referrer int,
-	user_agent int,
-	content_type int,
+	referrer integer,
+	user_agent integer,
+	content_type integer,
 	CONSTRAINT pk_access_log PRIMARY KEY (id),
 	CONSTRAINT fk_access_log_hostname FOREIGN KEY (hostname) REFERENCES entities(id) ON UPDATE CASCADE,
 	CONSTRAINT fk_access_log_virtualhost FOREIGN KEY (virtual_host) REFERENCES entities(id) ON UPDATE CASCADE,
