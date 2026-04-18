@@ -3,7 +3,7 @@ lib webstat : [ glob *.cpp : *_main.cpp ] :
 	<library>..//adhocutil
 	<library>..//dbppcore
 	<library>../thirdparty//scn
-	<library>..//z
+	<library>..//md
 	<library>..//curl
 	: :
 	<include>.

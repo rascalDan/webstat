@@ -5,7 +5,7 @@
 #include <modifycommand.h>
 
 namespace WebStat {
-	UserAgentLookupOperation::UserAgentLookupOperation(Crc32Value userAgentEntityId) : entityId {userAgentEntityId} { }
+	UserAgentLookupOperation::UserAgentLookupOperation(EntityId userAgentEntityId) : entityId {userAgentEntityId} { }
 
 	void
 	UserAgentLookupOperation::whenComplete(DB::Connection * dbconn) const
@@ -16,7 +16,7 @@ namespace WebStat {
 	}
 
 	std::unique_ptr<CurlOperation>
-	curlGetUserAgentDetail(Crc32Value entityId, const std::string_view uas, const char * baseUrl)
+	curlGetUserAgentDetail(EntityId entityId, const std::string_view uas, const char * baseUrl)
 	{
 		auto request = std::make_unique<UserAgentLookupOperation>(entityId);
 

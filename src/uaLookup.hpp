@@ -9,13 +9,13 @@
 namespace WebStat {
 	class UserAgentLookupOperation : public CurlOperation {
 	public:
-		UserAgentLookupOperation(Crc32Value entityId);
+		UserAgentLookupOperation(EntityId entityId);
 
 		void whenComplete(DB::Connection *) const override;
 
-		Crc32Value entityId;
+		EntityId entityId;
 	};
 
 	std::unique_ptr<CurlOperation> curlGetUserAgentDetail(
-			Crc32Value entityId, std::string_view uas, const char * baseUrl);
+			EntityId entityId, std::string_view uas, const char * baseUrl);
 }

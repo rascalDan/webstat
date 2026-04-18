@@ -7,7 +7,8 @@
 #include <connectionPool.h>
 #include <connection_fwd.h>
 #include <cstdio>
-#include <flat_set>
+#include <expected>
+#include <flat_map>
 #include <future>
 #include <scn/scan.h>
 #include <span>
@@ -54,7 +55,7 @@ namespace WebStat {
 		void ingestLog(std::FILE *);
 		void tryIngestQueuedLogLines();
 		void ingestLogLines(DB::Connection *, const LineBatch & lines);
-		void parkQueuedLogLines();
+		std::expected<std::filesystem::path, int> parkQueuedLogLines();
 		void runJobsAsNeeded();
 
 		unsigned int jobIngestParkedLines();
@@ -78,7 +79,7 @@ namespace WebStat {
 		DB::ConnectionPoolPtr dbpool;
 		mutable Stats stats {};
 
-		std::flat_set<Crc32Value> existingEntities;
+		std::flat_map<EntityHash, EntityId> existingEntities;
 		LineBatch queuedLines;
 
 		bool terminated = false;
@@ -99,11 +100,10 @@ namespace WebStat {
 		Job purgeOldLogs;
 
 	private:
-		static constexpr size_t MAX_NEW_ENTITIES = 6;
-		using NewEntityIds = std::array<std::optional<Crc32Value>, MAX_NEW_ENTITIES>;
-		NewEntityIds storeEntities(DB::Connection *, std::span<const std::optional<Entity>>) const;
-		using NewEntities = std::array<std::optional<Entity>, MAX_NEW_ENTITIES>;
-		template<typename... T> NewEntities newEntities(const std::tuple<T...> &) const;
+		template<typename... T> static std::vector<Entity *> entities(std::tuple<T...> &);
+		void fillKnownEntities(std::span<Entity *>) const;
+		void storeNewEntities(DB::Connection *, std::span<Entity *>) const;
+		void storeNewEntity(DB::Connection *, Entity &) const;
 		void onNewUserAgent(const Entity &) const;
 		void handleCurlOperations();
 		void logStats() const;
@@ -119,7 +119,7 @@ namespace WebStat {
 		[[gnu::format(printf, 3, 4)]] virtual void log(int level, const char * msgfmt, ...) const = 0;
 
 		using CurlOperations = std::map<CURL *, std::unique_ptr<CurlOperation>>;
-		uint32_t hostnameId;
+		EntityId hostnameId;
 		CurlMultiPtr curl;
 		mutable CurlOperations curlOperations;
 		std::thread::id mainThread;

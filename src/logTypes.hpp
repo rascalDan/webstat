@@ -1,5 +1,6 @@
 #pragma once
 
+#include <md5.h>
 #include <optional>
 #include <scn/scan.h>
 #include <string>
@@ -34,8 +35,15 @@ namespace WebStat {
 		ContentType,
 	};
 
-	using Crc32Value = uint32_t;
-	using Entity = std::tuple<Crc32Value, EntityType, std::string_view>;
+	using EntityId = int32_t;
+	using EntityHash = std::array<uint8_t, MD5_DIGEST_LENGTH>;
+
+	struct Entity {
+		EntityHash hash;
+		std::optional<EntityId> id;
+		EntityType type;
+		std::string_view value;
+	};
 }
 
 namespace scn {

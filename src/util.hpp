@@ -16,7 +16,7 @@ namespace WebStat {
 
 	template<typename... T>
 	auto
-	visit(auto && visitor, const std::tuple<T...> & values)
+	visit(auto && visitor, std::tuple<T...> & values)
 	{
 		std::apply(
 				[&](auto &&... value) {

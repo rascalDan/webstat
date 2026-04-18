@@ -1,7 +1,9 @@
-INSERT INTO entities(id, type, value, detail)
-	VALUES ($1, 'host', $2, jsonb_build_object('sysname', $3::text, 'release', $4::text,
-	'version', $5::text, 'machine', $6::text, 'domainname', $7::text))
-ON CONFLICT ON CONSTRAINT pk_entities
+INSERT INTO entities(type, value, detail)
+	VALUES ('host', $1, jsonb_build_object('sysname', $2::text, 'release', $3::text,
+	'version', $4::text, 'machine', $5::text, 'domainname', $6::text))
+ON CONFLICT (md5(value))
 	DO UPDATE SET
-		detail = jsonb_build_object('sysname', $3::text, 'release', $4::text, 'version',
-		$5::text, 'machine', $6::text, 'domainname', $7::text)
+		detail = jsonb_build_object('sysname', $2::text, 'release', $3::text, 'version',
+		$4::text, 'machine', $5::text, 'domainname', $6::text)
+	RETURNING
+		id

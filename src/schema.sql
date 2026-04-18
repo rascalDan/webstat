@@ -33,7 +33,7 @@ CREATE TYPE entity AS ENUM(
 );
 
 CREATE TABLE entities(
-	id oid NOT NULL,
+	id integer GENERATED ALWAYS AS IDENTITY,
 	value text NOT NULL,
 	type entity NOT NULL,
 	detail jsonb,
@@ -42,30 +42,69 @@ CREATE TABLE entities(
 
 CREATE UNIQUE INDEX uni_entities_value ON entities(MD5(value));
 
+CREATE OR REPLACE FUNCTION entity(newValue text, newType entity)
+	RETURNS integer
+	AS $$
+DECLARE
+	now timestamp without time zone;
+	recid integer;
+BEGIN
+	IF newValue IS NULL THEN
+		RETURN NULL;
+	END IF;
+	INSERT INTO entities(value, type)
+	SELECT
+		newValue,
+		newType
+	WHERE
+		NOT EXISTS (
+			SELECT
+			FROM
+				entities
+			WHERE
+				md5(value) = md5(newValue))
+	ON CONFLICT
+		DO NOTHING
+	RETURNING
+		id INTO recid;
+	IF recid IS NULL THEN
+		SELECT
+			id INTO recid
+		FROM
+			entities
+		WHERE
+			md5(value) = md5(newValue);
+	END IF;
+	RETURN recid;
+END;
+$$
+LANGUAGE plpgSQL
+RETURNS NULL ON NULL INPUT;
+
 CREATE TABLE access_log(
 	id bigint GENERATED ALWAYS AS IDENTITY,
-	hostname oid NOT NULL,
-	virtual_host oid NOT NULL,
+	hostname integer NOT NULL,
+	virtual_host integer NOT NULL,
 	remoteip inet NOT NULL,
 	request_time timestamp(6) NOT NULL,
 	method http_verb NOT NULL,
 	protocol protocol NOT NULL,
-	path oid NOT NULL,
-	query_string oid,
+	path integer NOT NULL,
+	query_string integer,
 	status smallint NOT NULL,
-	size int NOT NULL,
+	size integer NOT NULL,
 	duration interval second(6) NOT NULL,
-	referrer oid,
-	user_agent oid,
-	content_type oid,
+	referrer integer,
+	user_agent integer,
+	content_type integer,
 	CONSTRAINT pk_access_log PRIMARY KEY (id),
-	CONSTRAINT fk_access_log_hostname FOREIGN KEY (hostname) REFERENCES entities(id),
-	CONSTRAINT fk_access_log_virtualhost FOREIGN KEY (virtual_host) REFERENCES entities(id),
-	CONSTRAINT fk_access_log_path FOREIGN KEY (path) REFERENCES entities(id),
-	CONSTRAINT fk_access_log_query_string FOREIGN KEY (query_string) REFERENCES entities(id),
-	CONSTRAINT fk_access_log_referrer FOREIGN KEY (referrer) REFERENCES entities(id),
-	CONSTRAINT fk_access_log_user_agent FOREIGN KEY (user_agent) REFERENCES entities(id),
-	CONSTRAINT fk_access_log_content_type FOREIGN KEY (content_type) REFERENCES entities(id)
+	CONSTRAINT fk_access_log_hostname FOREIGN KEY (hostname) REFERENCES entities(id) ON UPDATE CASCADE,
+	CONSTRAINT fk_access_log_virtualhost FOREIGN KEY (virtual_host) REFERENCES entities(id) ON UPDATE CASCADE,
+	CONSTRAINT fk_access_log_path FOREIGN KEY (path) REFERENCES entities(id) ON UPDATE CASCADE,
+	CONSTRAINT fk_access_log_query_string FOREIGN KEY (query_string) REFERENCES entities(id) ON UPDATE CASCADE,
+	CONSTRAINT fk_access_log_referrer FOREIGN KEY (referrer) REFERENCES entities(id) ON UPDATE CASCADE,
+	CONSTRAINT fk_access_log_user_agent FOREIGN KEY (user_agent) REFERENCES entities(id) ON UPDATE CASCADE,
+	CONSTRAINT fk_access_log_content_type FOREIGN KEY (content_type) REFERENCES entities(id) ON UPDATE CASCADE
 );
 
 CREATE OR REPLACE VIEW access_log_view AS
