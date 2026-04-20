@@ -299,17 +299,14 @@ namespace WebStat {
 				auto valuesEntities = entities(values);
 				fillKnownEntities(valuesEntities);
 				try {
-					std::optional<DB::TransactionScope> lineTx;
-					if (!std::ranges::all_of(valuesEntities, &std::optional<EntityId>::has_value, &Entity::id)) {
-						lineTx.emplace(*dbconn);
-						storeNewEntities(dbconn, valuesEntities);
-						existingEntities.insert_range(valuesEntities | entityIds);
-					}
+					DB::TransactionScope lineTx {*dbconn};
+					storeNewEntities(dbconn, valuesEntities);
+					existingEntities.insert_range(valuesEntities | entityIds);
 					storeLogLine(dbconn, values);
 				}
 				catch (const DB::Error & originalError) {
 					try {
-						DB::TransactionScope dbtx {*dbconn};
+						DB::TransactionScope lineTx {*dbconn};
 						auto uninsertableLine = ToEntity<EntityType::UninsertableLine> {}(line);
 						storeNewEntity(dbconn, uninsertableLine);
 						log(LOG_NOTICE,
