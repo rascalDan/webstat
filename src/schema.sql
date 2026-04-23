@@ -107,6 +107,8 @@ CREATE TABLE access_log(
 	CONSTRAINT fk_access_log_content_type FOREIGN KEY (content_type) REFERENCES entities(id) ON UPDATE CASCADE
 );
 
+CREATE INDEX idx_access_log_request_time ON access_log USING BRIN(request_time) WITH (autosummarize = TRUE);
+
 CREATE OR REPLACE VIEW access_log_view AS
 SELECT
 	l.id,

@@ -439,8 +439,8 @@ namespace WebStat {
 		auto dbconn = dbpool->get();
 		const auto stopAt = Job::LastRunTime::clock::now() + settings.purgeDeleteMaxTime;
 		const auto purge = dbconn->modify(SQL::ACCESS_LOG_PURGE_OLD, SQL::ACCESS_LOG_PURGE_OLD_OPTS);
-		purge->bindParam(0, settings.purgeDeleteMax);
-		purge->bindParam(1, std::format("{} days", settings.purgeDaysToKeep));
+		purge->bindParam(0, std::format("{} days", settings.purgeDaysToKeep));
+		purge->bindParam(1, settings.purgeDeleteMax);
 		unsigned int purgedTotal {};
 		while (stopAt > Job::LastRunTime::clock::now()) {
 			const auto purged = purge->execute();

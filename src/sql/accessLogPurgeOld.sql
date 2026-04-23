@@ -1,18 +1,13 @@
-WITH scope AS (
+WITH delete_batch AS (
 	SELECT
-		id
+		ctid
 	FROM
 		access_log
+	WHERE
+		request_time < CURRENT_DATE - ?::interval
 	ORDER BY
-		id
-	LIMIT ?
-),
-scoperange AS (
-	SELECT
-		min(id) minid,
-		max(id) maxid
-	FROM
-		scope)
-DELETE FROM access_log USING scoperange
-WHERE request_time < CURRENT_DATE - ?::interval
-	AND access_log.id BETWEEN scoperange.minid AND scoperange.maxid
+		request_time
+	FOR UPDATE
+LIMIT ?)
+DELETE FROM access_log AS al USING delete_batch AS del
+WHERE al.ctid = del.ctid
