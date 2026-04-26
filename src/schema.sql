@@ -107,7 +107,21 @@ CREATE TABLE access_log(
 	CONSTRAINT fk_access_log_content_type FOREIGN KEY (content_type) REFERENCES entities(id) ON UPDATE CASCADE
 );
 
+CREATE INDEX idx_access_log_content_type ON access_log(content_type);
+
+CREATE INDEX idx_access_log_hostname ON access_log(hostname);
+
+CREATE INDEX idx_access_log_path ON access_log(path);
+
+CREATE INDEX idx_access_log_query_string ON access_log(query_string);
+
+CREATE INDEX idx_access_log_referrer ON access_log(referrer);
+
 CREATE INDEX idx_access_log_request_time ON access_log USING BRIN(request_time) WITH (autosummarize = TRUE);
+
+CREATE INDEX idx_access_log_user_agent ON access_log(user_agent);
+
+CREATE INDEX idx_access_log_virtual_host ON access_log(virtual_host);
 
 CREATE OR REPLACE VIEW access_log_view AS
 SELECT
