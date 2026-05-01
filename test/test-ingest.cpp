@@ -320,7 +320,7 @@ BOOST_AUTO_TEST_CASE(IngestParked, *boost::unit_test::depends_on("I/ParkLogLine"
 	BOOST_REQUIRE(parkQueuedLogLines());
 	BOOST_CHECK(!std::filesystem::is_empty(settings.fallbackDir));
 	BOOST_REQUIRE(queuedLines.empty());
-	const auto result = jobIngestParkedLines();
+	const auto result = jobReadParkedLines();
 	BOOST_REQUIRE(result);
 	BOOST_CHECK_EQUAL(result(), 2);
 	BOOST_CHECK_EQUAL(queuedLines.size(), 2);

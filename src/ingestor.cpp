@@ -116,7 +116,7 @@ namespace WebStat {
 
 	Ingestor::Ingestor(const utsname & host, DB::ConnectionPoolPtr dbpl, IngestorSettings givenSettings) :
 		settings {std::move(givenSettings)}, dbpool {std::move(dbpl)},
-		ingestParkedLines {&Ingestor::jobIngestParkedLines}, purgeOldLogs {&Ingestor::jobPurgeOldLogs},
+		ingestParkedLines {&Ingestor::jobReadParkedLines}, purgeOldLogs {&Ingestor::jobPurgeOldLogs},
 		hostnameId {insert(dbpool->get(), SQL::HOST_UPSERT, SQL::HOST_UPSERT_OPTS, host.nodename, host.sysname,
 				host.release, host.version, host.machine, host.domainname)},
 		curl {curl_multi_init()}, mainThread {std::this_thread::get_id()}
@@ -410,12 +410,12 @@ namespace WebStat {
 	}
 
 	Ingestor::Job::Result
-	Ingestor::jobIngestParkedLines()
+	Ingestor::jobReadParkedLines()
 	{
 		for (auto pathIter = std::filesystem::directory_iterator {settings.fallbackDir};
 				pathIter != std::filesystem::directory_iterator {}; ++pathIter) {
 			if (scn::scan<std::string>(pathIter->path().filename().string(), "parked-{:[a-zA-Z0-9]}.log")) {
-				return [lines = jobIngestParkedLines(pathIter->path()), this, path = pathIter->path()]() mutable {
+				return [lines = jobReadParkedLines(pathIter->path()), this, path = pathIter->path()]() mutable {
 					auto count = lines.size();
 					queuedLines.append_range(std::move(lines));
 					unlink(path.c_str());
@@ -429,12 +429,12 @@ namespace WebStat {
 	}
 
 	Ingestor::LineBatch
-	Ingestor::jobIngestParkedLines(const std::filesystem::path & path)
+	Ingestor::jobReadParkedLines(const std::filesystem::path & path)
 	{
 		if (auto parked = FilePtr(fopen(path.c_str(), "r"))) {
 			if (auto count = scn::scan<size_t>(parked.get(), "{}\n")) {
 				try {
-					return jobIngestParkedLines(parked.get(), count->value());
+					return jobReadParkedLines(parked.get(), count->value());
 				}
 				catch (...) {
 					auto failPath = auto {path}.replace_extension(".short");
@@ -447,7 +447,7 @@ namespace WebStat {
 	}
 
 	Ingestor::LineBatch
-	Ingestor::jobIngestParkedLines(FILE * lines, size_t count)
+	Ingestor::jobReadParkedLines(FILE * lines, size_t count)
 	{
 		LineBatch parkedLines;
 		parkedLines.reserve(count);

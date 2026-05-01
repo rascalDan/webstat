@@ -72,7 +72,7 @@ namespace WebStat {
 			std::optional<std::future<Result>> currentRun;
 		};
 
-		Job::Result jobIngestParkedLines();
+		Job::Result jobReadParkedLines();
 		Job::Result jobPurgeOldLogs();
 
 		template<typename... T> void storeLogLine(DB::Connection *, const std::tuple<T...> &) const;
@@ -114,8 +114,8 @@ namespace WebStat {
 		void finalizeJob(Job &, minutes freq, Job::LastRunTime::clock::time_point now);
 		void finishAllJobs();
 
-		LineBatch jobIngestParkedLines(const std::filesystem::path &);
-		LineBatch jobIngestParkedLines(FILE *, size_t count);
+		LineBatch jobReadParkedLines(const std::filesystem::path &);
+		LineBatch jobReadParkedLines(FILE *, size_t count);
 
 		static void sigtermHandler(int);
 		void terminate(int);
