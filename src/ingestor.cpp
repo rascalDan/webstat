@@ -368,7 +368,7 @@ namespace WebStat {
 	Ingestor::finalizeJob(Job & job, const std::chrono::minutes freq, const Job::LastRunTime::clock::time_point now)
 	{
 		try {
-			job.currentRun->get();
+			job.currentRun->get()();
 			job.lastRun = now;
 		}
 		catch (const std::exception & excp) {
@@ -409,7 +409,7 @@ namespace WebStat {
 		finishJob(purgeOldLogs);
 	}
 
-	unsigned int
+	Ingestor::Job::Result
 	Ingestor::jobIngestParkedLines()
 	{
 		unsigned int count = 0;
@@ -420,7 +420,9 @@ namespace WebStat {
 				count += 1;
 			}
 		}
-		return count;
+		return [count]() {
+			return count;
+		};
 	}
 
 	void
@@ -458,7 +460,7 @@ namespace WebStat {
 		return count;
 	}
 
-	unsigned int
+	Ingestor::Job::Result
 	Ingestor::jobPurgeOldLogs()
 	{
 		auto dbconn = dbpool->get();
@@ -475,7 +477,9 @@ namespace WebStat {
 			}
 			std::this_thread::sleep_for(settings.purgeDeletePause);
 		}
-		return purgedTotal;
+		return [purgedTotal]() {
+			return purgedTotal;
+		};
 	}
 
 	void

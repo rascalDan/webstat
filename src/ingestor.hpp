@@ -60,8 +60,20 @@ namespace WebStat {
 		std::expected<std::filesystem::path, int> parkQueuedLogLines();
 		void runJobsAsNeeded();
 
-		unsigned int jobIngestParkedLines();
-		unsigned int jobPurgeOldLogs();
+		struct Job {
+			using LastRunTime = std::chrono::system_clock::time_point;
+			using Result = std::function<unsigned int()>;
+			using Impl = Result (Ingestor::*)();
+
+			explicit Job(Impl jobImpl) : impl(jobImpl) { }
+
+			const Impl impl;
+			LastRunTime lastRun {LastRunTime::clock::now()};
+			std::optional<std::future<Result>> currentRun;
+		};
+
+		Job::Result jobIngestParkedLines();
+		Job::Result jobPurgeOldLogs();
 
 		template<typename... T> void storeLogLine(DB::Connection *, const std::tuple<T...> &) const;
 
@@ -85,17 +97,6 @@ namespace WebStat {
 		LineBatch queuedLines;
 
 		bool terminated = false;
-
-		struct Job {
-			using LastRunTime = std::chrono::system_clock::time_point;
-			using Impl = unsigned int (Ingestor::*)();
-
-			explicit Job(Impl jobImpl) : impl(jobImpl) { }
-
-			const Impl impl;
-			LastRunTime lastRun {LastRunTime::clock::now()};
-			std::optional<std::future<unsigned int>> currentRun;
-		};
 
 		Job::LastRunTime lastCheckedJobs {Job::LastRunTime::clock::now()};
 		Job ingestParkedLines;
