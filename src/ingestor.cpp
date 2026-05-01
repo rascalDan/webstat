@@ -253,14 +253,19 @@ namespace WebStat {
 	void
 	Ingestor::tryIngestQueuedLogLines()
 	{
+		auto storedEnd = queuedLines.begin();
 		try {
-			ingestLogLines(dbpool->get().get(), queuedLines);
-			queuedLines.clear();
+			for (auto batch :
+					queuedLines | std::views::chunk(settings.maxBatchSize) | std::views::take(settings.maxBatches)) {
+				ingestLogLines(dbpool->get().get(), batch);
+				storedEnd = batch.end();
+			}
 		}
 		catch (const std::exception & excp) {
 			log(LOG_ERR, "Unhandled exception: %s, clearing known entity list", excp.what());
 			existingEntities.clear();
 		}
+		queuedLines.erase(queuedLines.begin(), storedEnd);
 	}
 
 	template<typename... T>
@@ -285,7 +290,7 @@ namespace WebStat {
 	}
 
 	void
-	Ingestor::ingestLogLines(DB::Connection * dbconn, const LineBatch & lines)
+	Ingestor::ingestLogLines(DB::Connection * dbconn, const LinesView lines)
 	{
 		auto entityIds = std::views::transform([](auto && value) {
 			return std::make_pair(value->hash, *value->id);

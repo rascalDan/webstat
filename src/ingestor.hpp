@@ -26,6 +26,7 @@ namespace WebStat {
 		unsigned int dbMax = 4;
 		unsigned int dbKeep = 2;
 		size_t maxBatchSize = 1;
+		size_t maxBatches = 5;
 		minutes checkJobsAfter = 1min;
 		minutes freqIngestParkedLines = 30min;
 		minutes freqPurgeOldLogs = 6h;
@@ -39,6 +40,7 @@ namespace WebStat {
 	class Ingestor {
 	public:
 		using LineBatch = std::vector<std::string>;
+		using LinesView = std::span<const std::string>;
 		Ingestor(const utsname &, IngestorSettings);
 		Ingestor(const utsname &, DB::ConnectionPoolPtr, IngestorSettings);
 
@@ -54,7 +56,7 @@ namespace WebStat {
 
 		void ingestLog(std::FILE *);
 		void tryIngestQueuedLogLines();
-		void ingestLogLines(DB::Connection *, const LineBatch & lines);
+		void ingestLogLines(DB::Connection *, LinesView lines);
 		std::expected<std::filesystem::path, int> parkQueuedLogLines();
 		void runJobsAsNeeded();
 
