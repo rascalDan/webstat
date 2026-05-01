@@ -114,8 +114,8 @@ namespace WebStat {
 		void finalizeJob(Job &, minutes freq, Job::LastRunTime::clock::time_point now);
 		void finishAllJobs();
 
-		void jobIngestParkedLines(const std::filesystem::path &);
-		size_t jobIngestParkedLines(FILE *, size_t count);
+		LineBatch jobIngestParkedLines(const std::filesystem::path &);
+		LineBatch jobIngestParkedLines(FILE *, size_t count);
 
 		static void sigtermHandler(int);
 		void terminate(int);

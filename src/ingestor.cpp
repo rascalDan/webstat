@@ -412,37 +412,41 @@ namespace WebStat {
 	Ingestor::Job::Result
 	Ingestor::jobIngestParkedLines()
 	{
-		unsigned int count = 0;
 		for (auto pathIter = std::filesystem::directory_iterator {settings.fallbackDir};
 				pathIter != std::filesystem::directory_iterator {}; ++pathIter) {
 			if (scn::scan<std::string>(pathIter->path().filename().string(), "parked-{:[a-zA-Z0-9]}.log")) {
-				jobIngestParkedLines(pathIter->path());
-				count += 1;
+				return [lines = jobIngestParkedLines(pathIter->path()), this, path = pathIter->path()]() mutable {
+					auto count = lines.size();
+					queuedLines.append_range(std::move(lines));
+					unlink(path.c_str());
+					return count;
+				};
 			}
 		}
-		return [count]() {
-			return count;
+		return []() {
+			return 0;
 		};
 	}
 
-	void
+	Ingestor::LineBatch
 	Ingestor::jobIngestParkedLines(const std::filesystem::path & path)
 	{
 		if (auto parked = FilePtr(fopen(path.c_str(), "r"))) {
 			if (auto count = scn::scan<size_t>(parked.get(), "{}\n")) {
-				if (jobIngestParkedLines(parked.get(), count->value()) < count->value()) {
+				try {
+					return jobIngestParkedLines(parked.get(), count->value());
+				}
+				catch (...) {
 					auto failPath = auto {path}.replace_extension(".short");
 					rename(path.c_str(), failPath.c_str());
-					throw std::system_error {errno, std::generic_category(), "Short read of parked file"};
+					throw;
 				}
-				unlink(path.c_str());
-				return;
 			}
 		}
 		throw std::system_error {errno, std::generic_category(), strerror(errno)};
 	}
 
-	size_t
+	Ingestor::LineBatch
 	Ingestor::jobIngestParkedLines(FILE * lines, size_t count)
 	{
 		LineBatch parkedLines;
@@ -453,11 +457,10 @@ namespace WebStat {
 				parkedLines.emplace_back(std::move(line->value()));
 			}
 			else {
-				return lineNo;
+				throw std::system_error {errno, std::generic_category(), "Short read of parked file"};
 			}
 		}
-		queuedLines.append_range(std::move(parkedLines));
-		return count;
+		return parkedLines;
 	}
 
 	Ingestor::Job::Result
