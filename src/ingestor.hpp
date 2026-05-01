@@ -110,6 +110,8 @@ namespace WebStat {
 		void handleCurlOperations();
 		void logStats() const;
 		void clearStats();
+		void finalizeJob(Job &, minutes freq, Job::LastRunTime::clock::time_point now);
+		void finishAllJobs();
 
 		void jobIngestParkedLines(const std::filesystem::path &);
 		size_t jobIngestParkedLines(FILE *, size_t count);
