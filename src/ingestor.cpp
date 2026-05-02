@@ -120,7 +120,7 @@ namespace WebStat {
 		storeQueueLines {&Ingestor::jobStoreQueuedLines},
 		hostnameId {insert(dbpool->get(), SQL::HOST_UPSERT, SQL::HOST_UPSERT_OPTS, host.nodename, host.sysname,
 				host.release, host.version, host.machine, host.domainname)},
-		curl {curl_multi_init()}, mainThread {std::this_thread::get_id()}
+		curl {curl_multi_init()}
 	{
 		assert(!currentIngestor);
 		currentIngestor = this;
@@ -239,7 +239,7 @@ namespace WebStat {
 			if (expiredThenSet(lastCheckedJobs, settings.checkJobsAfter)) {
 				runJobsAsNeeded();
 			}
-			if (!curlOperations.empty()) {
+			if (std::lock_guard curlOperationsLock {curlOperationsMutex}; !curlOperations.empty()) {
 				handleCurlOperations();
 			}
 		}
@@ -547,7 +547,7 @@ namespace WebStat {
 		assert(!entity.id);
 		const auto & [typeName, onInsert] = ENTITY_TYPE_VALUES[std::to_underlying(entity.type)];
 		entity.id = insert(dbconn, SQL::ENTITY_INSERT, SQL::ENTITY_INSERT_OPTS, entity.value, typeName);
-		if (onInsert && std::this_thread::get_id() == mainThread) {
+		if (onInsert) {
 			std::invoke(onInsert, this, entity);
 		}
 		stats.entitiesInserted += 1;
@@ -558,8 +558,11 @@ namespace WebStat {
 	{
 		const auto & [entityHash, entityId, type, value] = entity;
 		auto curlOp = curlGetUserAgentDetail(*entityId, value, settings.userAgentAPI.c_str());
-		auto added = curlOperations.emplace(curlOp->hnd.get(), std::move(curlOp));
-		curl_multi_add_handle(curl.get(), added.first->first);
+		{
+			std::lock_guard curlOperationsLock {curlOperationsMutex};
+			auto added = curlOperations.emplace(curlOp->hnd.get(), std::move(curlOp));
+			curl_multi_add_handle(curl.get(), added.first->first);
+		}
 	}
 
 	template<typename... T>

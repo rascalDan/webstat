@@ -131,6 +131,6 @@ namespace WebStat {
 		EntityId hostnameId;
 		CurlMultiPtr curl;
 		mutable CurlOperations curlOperations;
-		std::thread::id mainThread;
+		mutable std::mutex curlOperationsMutex;
 	};
 }
