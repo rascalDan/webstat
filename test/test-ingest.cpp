@@ -297,7 +297,7 @@ BOOST_AUTO_TEST_CASE(ParkLogLine)
 {
 	queuedLines.emplace_back(LOGLINE1);
 	queuedLines.emplace_back(LOGLINE2);
-	const auto path = parkQueuedLogLines();
+	const auto path = parkLogLines(queuedLines);
 	BOOST_REQUIRE(path);
 	BOOST_TEST_INFO(*path);
 	BOOST_REQUIRE(std::filesystem::exists(*path));
@@ -317,7 +317,7 @@ BOOST_AUTO_TEST_CASE(IngestParked, *boost::unit_test::depends_on("I/ParkLogLine"
 {
 	queuedLines.emplace_back(LOGLINE1);
 	queuedLines.emplace_back(LOGLINE2);
-	BOOST_REQUIRE(parkQueuedLogLines());
+	BOOST_REQUIRE(parkLogLines(queuedLines));
 	BOOST_CHECK(!std::filesystem::is_empty(settings.fallbackDir));
 	BOOST_REQUIRE(queuedLines.empty());
 	const auto result = jobReadParkedLines();
@@ -340,7 +340,7 @@ BOOST_AUTO_TEST_CASE(IngestParkedJob,
 	const auto now = Job::LastRunTime::clock::now();
 	ingestParkedLines.lastRun = now - 1s;
 	queuedLines.emplace_back(LOGLINE1);
-	const auto path = parkQueuedLogLines();
+	const auto path = parkLogLines(queuedLines);
 	BOOST_REQUIRE(path);
 	BOOST_REQUIRE(queuedLines.empty());
 	BOOST_REQUIRE(std::filesystem::exists(*path));
@@ -374,7 +374,7 @@ BOOST_AUTO_TEST_CASE(JobErrorRescheduler, *boost::unit_test::depends_on("I/Inges
 	const auto now = Job::LastRunTime::clock::now();
 	ingestParkedLines.lastRun = now - settings.freqIngestParkedLines - 1s;
 	queuedLines.emplace_back(LOGLINE1);
-	const auto path = parkQueuedLogLines();
+	const auto path = parkLogLines(queuedLines);
 	BOOST_REQUIRE(path);
 	std::filesystem::permissions(*path, std::filesystem::perms::owner_write);
 	runJobsAsNeeded();
@@ -405,7 +405,10 @@ BOOST_AUTO_TEST_CASE(FetchMockUserAgentDetail)
 BOOST_AUTO_TEST_CASE(DiscardUnparsable)
 {
 	queuedLines.emplace_back("does not parse");
-	BOOST_REQUIRE_NO_THROW(tryIngestQueuedLogLines());
+	auto job = beginIngestQueuedLogLines();
+	BOOST_CHECK_EQUAL(&job.first, &*storeQueueLines.currentRun);
+	BOOST_CHECK(job.second);
+	finishAllJobs();
 	auto dbconn = dbpool->get();
 	auto select = dbconn->select("SELECT id::bigint, value FROM entities WHERE type = 'unparsable_line'");
 	constexpr std::array<std::tuple<EntityId, std::string_view>, 1> EXPECTED {{
