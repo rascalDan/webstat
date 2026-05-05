@@ -8,8 +8,8 @@
 #include <connection_fwd.h>
 #include <cstdio>
 #include <expected>
-#include <flat_map>
 #include <future>
+#include <map>
 #include <scn/scan.h>
 #include <span>
 #include <sys/utsname.h>
@@ -97,7 +97,7 @@ namespace WebStat {
 		DB::ConnectionPoolPtr dbpool;
 		mutable Stats stats {};
 
-		std::flat_map<EntityHash, EntityId> existingEntities;
+		std::map<EntityHash, EntityId> existingEntities;
 		LineBatch queuedLines, processingLines;
 
 		bool terminated = false;
