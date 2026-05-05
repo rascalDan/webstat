@@ -9,6 +9,7 @@
 #include <ranges>
 #include <scn/scan.h>
 #include <selectcommand.h>
+#include <selectcommandUtil.impl.h>
 #include <syslog.h>
 #include <utility>
 #include <zlib.h>
@@ -99,6 +100,21 @@ namespace WebStat {
 				T out;
 				(*ins)[0] >> out;
 				return out;
+			}
+			throw DB::NoRowsAffected {};
+		}
+
+		template<typename... Fields, typename... Binds>
+			requires(sizeof...(Fields) > 1)
+		std::tuple<Fields...>
+		insert(auto && dbconn, const std::string & sql, const DB::CommandOptionsPtr & opts, Binds &&... binds)
+		{
+			DB::SelectCommandPtr ins = dbconn->select(sql, opts);
+			bindMany(ins, 0, std::forward<Binds>(binds)...);
+			for (auto row : ins->template as<Fields...>()) {
+				return [&row]<std::unsigned_integral T, T... N>(std::integer_sequence<T, N...>) {
+					return std::make_tuple(row.template get<N>()...);
+				}(std::make_integer_sequence<unsigned int, sizeof...(Fields)> {});
 			}
 			throw DB::NoRowsAffected {};
 		}
