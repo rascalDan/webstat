@@ -43,14 +43,20 @@ CREATE TABLE entities(
 CREATE UNIQUE INDEX uni_entities_value ON entities(MD5(value));
 
 CREATE OR REPLACE FUNCTION entity(newValue text, newType entity)
-	RETURNS integer
+	RETURNS TABLE(
+		id integer,
+		nulldetail boolean
+	)
 	AS $$
 DECLARE
 	now timestamp without time zone;
 	recid integer;
+	nulldetail boolean;
 BEGIN
 	IF newValue IS NULL THEN
-		RETURN NULL;
+		RETURN query
+	VALUES (NULL,
+		NULL);
 	END IF;
 	INSERT INTO entities(value, type)
 	SELECT
@@ -66,16 +72,22 @@ BEGIN
 	ON CONFLICT
 		DO NOTHING
 	RETURNING
-		id INTO recid;
+		entities.id,
+		entities.detail IS NULL INTO recid,
+		nulldetail;
 	IF recid IS NULL THEN
+		RETURN query
 		SELECT
-			id INTO recid
+			id,
+			detail IS NULL
 		FROM
 			entities
 		WHERE
 			md5(value) = md5(newValue);
 	END IF;
-	RETURN recid;
+	RETURN query
+VALUES (recid,
+	nulldetail);
 END;
 $$
 LANGUAGE plpgSQL

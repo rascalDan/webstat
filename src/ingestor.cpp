@@ -562,8 +562,10 @@ namespace WebStat {
 
 		assert(!entity.id);
 		const auto & [typeName, onInsert] = ENTITY_TYPE_VALUES[std::to_underlying(entity.type)];
-		entity.id = insert(dbconn, SQL::ENTITY_INSERT, SQL::ENTITY_INSERT_OPTS, entity.value, typeName);
-		if (onInsert) {
+		bool entityNullDetail = true;
+		std::tie(entity.id, entityNullDetail)
+				= insert<EntityId, bool>(dbconn, SQL::ENTITY_INSERT, SQL::ENTITY_INSERT_OPTS, entity.value, typeName);
+		if (onInsert && entityNullDetail) {
 			std::invoke(onInsert, this, entity);
 		}
 		stats.entitiesInserted += 1;
