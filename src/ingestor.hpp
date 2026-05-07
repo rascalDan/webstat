@@ -46,10 +46,12 @@ namespace WebStat {
 			using LastRunTime = std::chrono::system_clock::time_point;
 			using Result = std::function<unsigned int()>;
 			using Impl = Result (Ingestor::*)();
+			using Cond = bool (Ingestor::*)();
 
-			explicit Job(Impl jobImpl) : impl(jobImpl) { }
+			explicit Job(Impl jobImpl, Cond jobCond = nullptr) : impl {jobImpl}, cond {jobCond} { }
 
 			const Impl impl;
+			const Cond cond;
 			LastRunTime lastRun {LastRunTime::clock::now()};
 			std::optional<std::future<Result>> currentRun;
 		};

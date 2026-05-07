@@ -426,7 +426,9 @@ namespace WebStat {
 				}
 			}
 			else if (expired(job.lastRun, freq, now)) {
-				job.currentRun.emplace(std::async(job.impl, this));
+				if (!job.cond || std::invoke(job.cond, this)) {
+					job.currentRun.emplace(std::async(job.impl, this));
+				}
 			}
 		};
 		runJobAsNeeded(ingestParkedLines, settings.freqIngestParkedLines);
