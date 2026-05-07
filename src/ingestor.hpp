@@ -75,6 +75,7 @@ namespace WebStat {
 		std::expected<std::filesystem::path, int> parkLogLines(LineBatch &);
 		void runJobsAsNeeded();
 
+		Job::Result jobHandleCompleteCurlOps();
 		Job::Result jobReadParkedLines();
 		Job::Result jobPurgeOldLogs();
 		Job::Result jobStoreQueuedLines();
@@ -105,6 +106,7 @@ namespace WebStat {
 		bool terminated = false;
 
 		Job::LastRunTime lastCheckedJobs {Job::LastRunTime::clock::now()};
+		Job handleCompleteCurlOps;
 		Job ingestParkedLines;
 		Job purgeOldLogs;
 		Job storeQueueLines;
@@ -115,6 +117,8 @@ namespace WebStat {
 		void storeNewEntities(DB::Connection *, std::span<Entity *>) const;
 		void storeNewEntity(DB::Connection *, Entity &) const;
 		void onNewUserAgent(const Entity &) const;
+		auto withCurlLock(auto &&...);
+		bool haveCurlOperations();
 		void handleCurlOperations();
 		void logStats() const;
 		void clearStats();
