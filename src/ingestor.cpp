@@ -308,7 +308,7 @@ namespace WebStat {
 		if (processingLines.empty()) {
 			std::swap(queuedLines, processingLines);
 		}
-		return {storeQueueLines.currentRun.emplace(std::async(storeQueueLines.impl, this)), true};
+		return {storeQueueLines.currentRun.emplace(std::async(std::launch::async, storeQueueLines.impl, this)), true};
 	}
 
 	Ingestor::Job::Result
@@ -454,7 +454,7 @@ namespace WebStat {
 			}
 			else if (expired(job.lastRun, freq, now)) {
 				if (!job.cond || std::invoke(job.cond, this)) {
-					job.currentRun.emplace(std::async(job.impl, this));
+					job.currentRun.emplace(std::async(std::launch::async, job.impl, this));
 				}
 			}
 		};
