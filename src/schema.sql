@@ -78,12 +78,12 @@ BEGIN
 	IF recid IS NULL THEN
 		RETURN query
 		SELECT
-			id,
-			detail IS NULL
+			e.id,
+			e.detail IS NULL
 		FROM
-			entities
+			entities e
 		WHERE
-			md5(value) = md5(newValue);
+			md5(e.value) = md5(newValue);
 	END IF;
 	RETURN query
 VALUES (recid,
