@@ -272,7 +272,7 @@ BOOST_AUTO_TEST_CASE(StoreLog, *boost::unit_test::depends_on("I/StoreLogLine"))
 	WebStat::LogFile log {"/tmp/store-log-fixture.log", 10};
 	WebStat::FilePtr input {fopen(log.path.c_str(), "r")};
 	BOOST_REQUIRE(input);
-	ingestLog(input.get());
+	BOOST_CHECK_NO_THROW(ingestLog(input.get()));
 	BOOST_CHECK_EQUAL(stats.linesRead, 10);
 	BOOST_CHECK_EQUAL(stats.linesParsed, 10);
 	BOOST_CHECK_EQUAL(stats.linesParseFailed, 0);

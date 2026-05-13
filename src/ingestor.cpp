@@ -281,7 +281,9 @@ namespace WebStat {
 			withCurlLock(&Ingestor::handleCurlOperations, this);
 		}
 		finishAllJobs();
-		std::invoke(storeQueueLines.impl, this)();
+		storeQueueLines.currentRun.reset();
+		beginIngestQueuedLogLines();
+		storeQueueLines.currentRun.reset();
 		std::ignore = parkLogLines(queuedLines);
 		std::ignore = parkLogLines(processingLines);
 		withCurlLock([this]() {
@@ -300,7 +302,7 @@ namespace WebStat {
 	Ingestor::beginIngestQueuedLogLines()
 	{
 		if (storeQueueLines.currentRun) {
-			if (!storeQueueLines.currentRun->valid()) {
+			if (storeQueueLines.currentRun->wait_for(std::chrono::seconds {}) != std::future_status::ready) {
 				return {*storeQueueLines.currentRun, false};
 			}
 			finalizeJob(storeQueueLines, {}, Job::LastRunTime::clock::now());
@@ -447,7 +449,7 @@ namespace WebStat {
 	{
 		auto runJobAsNeeded = [this, now = Job::LastRunTime::clock::now()](Job & job, auto freq) {
 			if (job.currentRun) {
-				if (job.currentRun->valid()) {
+				if (job.currentRun->wait_for(std::chrono::seconds {}) == std::future_status::ready) {
 					finalizeJob(job, freq, now);
 				}
 			}
