@@ -316,8 +316,7 @@ namespace WebStat {
 	{
 		auto storedEnd = processingLines.begin();
 		try {
-			for (auto batch : processingLines | std::views::chunk(settings.maxBatchSize)
-							| std::views::take(settings.maxBatches)) {
+			for (auto batch : processingLines | std::views::chunk(settings.maxBatchSize)) {
 				ingestLogLines(dbpool->get().get(), batch);
 				storedEnd = batch.end();
 			}

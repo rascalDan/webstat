@@ -26,7 +26,6 @@ namespace WebStat {
 		unsigned int dbMax = 4;
 		unsigned int dbKeep = 2;
 		size_t maxBatchSize = 1;
-		size_t maxBatches = 5;
 		minutes checkJobsAfter = 1min;
 		minutes freqIngestParkedLines = 30min;
 		minutes freqPurgeOldLogs = 6h;
