@@ -542,7 +542,7 @@ namespace WebStat {
 		purge->bindParam(0, std::format("{} days", settings.purgeDaysToKeep));
 		purge->bindParam(1, settings.purgeDeleteMax);
 		unsigned int purgedTotal {};
-		while (stopAt > Job::LastRunTime::clock::now()) {
+		while (!terminated && stopAt > Job::LastRunTime::clock::now()) {
 			const auto purged = purge->execute();
 			purgedTotal += purged;
 			if (purged < settings.purgeDeleteMax) {
