@@ -334,6 +334,10 @@ namespace WebStat {
 		};
 	}
 
+	constexpr auto ENTITY_IDS = std::views::transform([](auto && value) {
+		return std::make_pair(value->hash, *value->id);
+	});
+
 	template<typename... T>
 	std::vector<Entity *>
 	Ingestor::entities(std::tuple<T...> & values)
@@ -358,10 +362,6 @@ namespace WebStat {
 	void
 	Ingestor::ingestLogLines(DB::Connection * dbconn, const LinesView lines)
 	{
-		auto entityIds = std::views::transform([](auto && value) {
-			return std::make_pair(value->hash, *value->id);
-		});
-
 		DB::TransactionScope batchTx {*dbconn};
 		for (const auto & line : lines) {
 			if (auto result = scanLogLine(line)) {
@@ -372,7 +372,7 @@ namespace WebStat {
 				try {
 					DB::TransactionScope lineTx {*dbconn};
 					storeNewEntities(dbconn, valuesEntities);
-					existingEntities()->insert_range(valuesEntities | entityIds);
+					existingEntities()->insert_range(valuesEntities | ENTITY_IDS);
 					storeLogLine(dbconn, values);
 				}
 				catch (const DB::Error & originalError) {
