@@ -325,7 +325,7 @@ namespace WebStat {
 		}
 		catch (const std::exception & excp) {
 			log(LOG_ERR, "Unhandled exception: %s, clearing known entity list", excp.what());
-			existingEntities.clear();
+			existingEntities()->clear();
 		}
 		auto count = std::distance(processingLines.begin(), storedEnd);
 		processingLines.erase(processingLines.begin(), storedEnd);
@@ -372,7 +372,7 @@ namespace WebStat {
 				try {
 					DB::TransactionScope lineTx {*dbconn};
 					storeNewEntities(dbconn, valuesEntities);
-					existingEntities.insert_range(valuesEntities | entityIds);
+					existingEntities()->insert_range(valuesEntities | entityIds);
 					storeLogLine(dbconn, values);
 				}
 				catch (const DB::Error & originalError) {
@@ -558,8 +558,9 @@ namespace WebStat {
 	void
 	Ingestor::fillKnownEntities(const std::span<Entity *> entities) const
 	{
+		auto lockedEntities = existingEntities.shared();
 		for (const auto entity : entities) {
-			if (auto existing = existingEntities.find(entity->hash); existing != existingEntities.end()) {
+			if (auto existing = lockedEntities->find(entity->hash); existing != lockedEntities->end()) {
 				entity->id = existing->second;
 			}
 		}
@@ -639,7 +640,7 @@ namespace WebStat {
 				"Statistics: linesQueued %zu, linesRead %zu, linesParsed %zu, linesParseFailed %zu, logsInserted %zu, "
 				"entitiesInserted %zu, entitiesKnown %zu",
 				queuedLines.size(), stats.linesRead, stats.linesParsed, stats.linesParseFailed, stats.logsInserted,
-				stats.entitiesInserted, existingEntities.size());
+				stats.entitiesInserted, existingEntities->size());
 	}
 
 	void

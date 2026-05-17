@@ -99,7 +99,7 @@ namespace WebStat {
 		DB::ConnectionPoolPtr dbpool;
 		mutable Stats stats {};
 
-		std::map<EntityHash, EntityId> existingEntities;
+		ThreadSafeT<std::map<EntityHash, EntityId>> existingEntities;
 		LineBatch queuedLines, processingLines;
 
 		bool terminated = false;
