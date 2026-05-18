@@ -12,9 +12,52 @@
 namespace {
 	using namespace WebStat;
 	BOOST_GLOBAL_FIXTURE(MockDB);
+
+	constexpr std::array<std::string_view, 9> ENTITY_TYPE_NAMES {
+			"host",
+			"virtual_host",
+			"path",
+			"query_string",
+			"referrer",
+			"user_agent",
+			"unparsable_line",
+			"uninsertable_line",
+			"content_type",
+	};
+
+	EntityType
+	toEntityType(const std::string_view typeStr)
+	{
+		auto iter = std::ranges::find(ENTITY_TYPE_NAMES, typeStr);
+		if (iter == ENTITY_TYPE_NAMES.end()) {
+			throw std::domain_error {std::format("Unknown entity type {}", typeStr)};
+		}
+		return static_cast<EntityType>(iter - ENTITY_TYPE_NAMES.begin());
+	}
+
+	using EntityWithDetail = std::tuple<EntityId, EntityType, std::string, std::optional<std::string>>;
+
+	std::optional<EntityWithDetail>
+	getEntityById(DB::Connection * dbconn, EntityId id)
+	{
+		auto select = dbconn->select("SELECT type, value, detail FROM entities WHERE id = ?");
+		select->bindParam(0, id);
+		for (auto [typeStr, value, detail] : select->as<std::string, std::string, std::optional<std::string>>()) {
+			return std::make_optional<EntityWithDetail>(id, toEntityType(typeStr), std::move(value), std::move(detail));
+		}
+		return std::nullopt;
+	}
 }
 
 namespace std {
+	ostream &
+	operator<<(ostream & strm, const EntityType value)
+	{
+		const auto valueNum = static_cast<size_t>(value);
+		std::print(strm, "EntityType: {} ({})", ENTITY_TYPE_NAMES[valueNum], valueNum);
+		return strm;
+	}
+
 	template<typename T>
 	ostream &
 	operator<<(ostream & strm, const std::optional<T> & value)
@@ -424,6 +467,60 @@ BOOST_AUTO_TEST_CASE(DiscardUnparsable)
 BOOST_AUTO_TEST_CASE(PurgeOldJob)
 {
 	BOOST_CHECK_EQUAL(2, jobPurgeOldLogs()());
+}
+
+BOOST_AUTO_TEST_CASE(RetryUninsertableNone)
+{
+	BOOST_CHECK_EQUAL(0, jobRetryUninsertableLines()());
+}
+
+BOOST_AUTO_TEST_CASE(RetryUninsertableSuccess)
+{
+	auto dbconn = dbpool->get();
+	Entity uninsertable {{}, {}, EntityType::UninsertableLine, LOGLINE1};
+	storeNewEntity(dbconn.get(), uninsertable);
+	BOOST_REQUIRE(uninsertable.id);
+	BOOST_REQUIRE(getEntityById(dbconn.get(), *uninsertable.id));
+
+	BOOST_CHECK_EQUAL(1, jobRetryUninsertableLines()());
+	BOOST_REQUIRE(!getEntityById(dbconn.get(), *uninsertable.id));
+}
+
+BOOST_AUTO_TEST_CASE(RetryUninsertableNowUnparsable)
+{
+	auto dbconn = dbpool->get();
+	Entity uninsertable {{}, {}, EntityType::UninsertableLine, "blah"};
+	storeNewEntity(dbconn.get(), uninsertable);
+	BOOST_REQUIRE(uninsertable.id);
+
+	BOOST_CHECK_EQUAL(0, jobRetryUninsertableLines()());
+	auto updatedEntity = getEntityById(dbconn.get(), *uninsertable.id);
+	BOOST_REQUIRE(updatedEntity);
+	BOOST_CHECK_EQUAL(std::get<1>(*updatedEntity), EntityType::UnparsableLine);
+}
+
+BOOST_AUTO_TEST_CASE(RetryUninsertableStillUninsertable)
+{
+	auto dbconn = dbpool->get();
+	constexpr std::string_view LOGLINE_UNINSERTABLE
+			= R"LOG(git.randomdan.homeip.net 98.82.40.168 1755561576768318 CAUSEPARSEFAIL "/repo/gentoobrowse-api/commit/gentoobrowse-api/unittests/fixtures/756569aa764177340726dd3d40b41d89b11b20c7/app-crypt/pdfcrack/Manifest" "?h=gentoobrowse-api-0.9.1&id=a2ed3fd30333721accd4b697bfcb6cc4165c7714" HTTP/1.1 200 1884 107791 "-" "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Amazonbot/0.1; +https://developer.amazon.com/support/amazonbot) Chrome/119.0.6045.214 Safari/537.36" "text/plain")LOG";
+	Entity uninsertable {{}, {}, EntityType::UninsertableLine, LOGLINE_UNINSERTABLE};
+	storeNewEntity(dbconn.get(), uninsertable);
+	BOOST_REQUIRE(uninsertable.id);
+
+	BOOST_CHECK_EQUAL(0, jobRetryUninsertableLines()());
+	auto updatedEntity = getEntityById(dbconn.get(), *uninsertable.id);
+	BOOST_REQUIRE(updatedEntity);
+	BOOST_CHECK_EQUAL(std::get<1>(*updatedEntity), EntityType::UninsertableLine);
+	const auto & detail = std::get<3>(*updatedEntity);
+	BOOST_REQUIRE(detail);
+
+	BOOST_TEST_CONTEXT(*detail) {
+		BOOST_CHECK(detail->starts_with("{"));
+		BOOST_CHECK(detail->contains("invalid input value for enum http_verb"));
+		BOOST_CHECK(detail->contains("retriedAt"));
+		BOOST_CHECK(detail->ends_with("}"));
+	}
 }
 
 BOOST_AUTO_TEST_CASE(LogStatsSignal)

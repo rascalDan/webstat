@@ -28,6 +28,7 @@ namespace WebStat {
 		size_t maxBatchSize = 1;
 		minutes checkJobsAfter = 1min;
 		minutes freqIngestParkedLines = 30min;
+		minutes freqRetryUninsertableLines = 4h;
 		minutes freqPurgeOldLogs = 6h;
 		unsigned int purgeDaysToKeep = 61; // ~2 months
 		unsigned int purgeDeleteMax = 10'000;
@@ -78,6 +79,7 @@ namespace WebStat {
 		Job::Result jobReadParkedLines();
 		Job::Result jobPurgeOldLogs();
 		Job::Result jobStoreQueuedLines();
+		Job::Result jobRetryUninsertableLines();
 
 		template<typename... T> void storeLogLine(DB::Connection *, const std::tuple<T...> &) const;
 
@@ -109,8 +111,8 @@ namespace WebStat {
 		Job ingestParkedLines;
 		Job purgeOldLogs;
 		Job storeQueueLines;
+		Job retryUninsertableLines;
 
-	private:
 		template<typename... T> static std::vector<Entity *> entities(std::tuple<T...> &);
 		void fillKnownEntities(std::span<Entity *>) const;
 		void storeNewEntities(DB::Connection *, std::span<Entity *>) const;
