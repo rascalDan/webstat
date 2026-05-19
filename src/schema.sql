@@ -42,6 +42,10 @@ CREATE TABLE entities(
 
 CREATE UNIQUE INDEX uni_entities_value ON entities(MD5(value));
 
+CREATE INDEX idx_entities_retryinsert ON entities(id)
+WHERE
+	type = 'uninsertable_line' AND detail IS NULL;
+
 CREATE OR REPLACE FUNCTION entity(newValue text, newType entity)
 	RETURNS TABLE(
 		id integer,

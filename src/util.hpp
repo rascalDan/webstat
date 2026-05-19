@@ -3,6 +3,7 @@
 #include <chrono>
 #include <command.h>
 #include <scn/scan.h>
+#include <shared_mutex>
 #include <tuple>
 
 namespace WebStat {
@@ -95,4 +96,52 @@ namespace WebStat {
 		}
 		return false;
 	}
+
+	template<typename ValueType, typename MutexType = std::shared_mutex> class ThreadSafeT {
+	public:
+		template<typename... P> ThreadSafeT(P &&... params) : value {std::forward<P>(params)...} { }
+
+		template<typename LockedValueType, typename LockType> class Locked {
+		public:
+			Locked(LockedValueType & valueRef, MutexType & mutex) : value {valueRef}, lock {mutex} { }
+
+			LockedValueType *
+			operator->()
+			{
+				return &value;
+			}
+
+		private:
+			LockedValueType & value;
+			LockType lock;
+		};
+
+		Locked<const ValueType, std::shared_lock<MutexType>>
+		shared() const
+		{
+			return {value, mutex};
+		}
+
+		Locked<ValueType, std::lock_guard<MutexType>>
+		unique()
+		{
+			return {value, mutex};
+		}
+
+		Locked<const ValueType, std::shared_lock<MutexType>>
+		operator->() const
+		{
+			return shared();
+		}
+
+		Locked<ValueType, std::lock_guard<MutexType>>
+		operator()()
+		{
+			return unique();
+		}
+
+	private:
+		ValueType value;
+		mutable MutexType mutex;
+	};
 }

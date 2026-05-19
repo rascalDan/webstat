@@ -77,6 +77,8 @@ main(int argc, char ** argv)
 		 "How often to check for and import parked log lines")
 		("job.purge.freq", po::value(&settings.freqPurgeOldLogs)->default_value(settings.freqPurgeOldLogs),
 		 "How often to purge old access log entries from the database")
+		("job.retryUninsertable.freq", po::value(&settings.freqRetryUninsertableLines)->default_value(settings.freqRetryUninsertableLines),
+		 "After how long to retry inserting log lines which previously could not be inserted")
 		("job.purge.days", po::value(&settings.purgeDaysToKeep)->default_value(settings.purgeDaysToKeep),
 		 "How many days of access log entries to keep")
 		("job.purge.max", po::value(&settings.purgeDeleteMax)->default_value(settings.purgeDeleteMax),
