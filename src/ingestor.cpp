@@ -26,19 +26,13 @@ namespace DB {
 
 namespace WebStat {
 	namespace {
-		using ByteArrayView = std::span<const uint8_t>;
-
-		auto
-		bytesToHexRange(const ByteArrayView bytes)
-		{
+		constexpr auto TO_HEX_RANGE = std::views::transform([](auto byte) {
 			constexpr auto HEXN = 16ZU;
-			return bytes | std::views::transform([](auto byte) {
-				return std::array {byte / HEXN, byte % HEXN};
-			}) | std::views::join
-					| std::views::transform([](auto nibble) {
-						  return "0123456789abcdef"[nibble];
-					  });
-		}
+			return std::array {byte / HEXN, byte % HEXN};
+		}) | std::views::join
+				| std::views::transform([](auto nibble) {
+					  return "0123456789abcdef"[nibble];
+				  });
 
 		EntityHash
 		makeHash(const std::string_view value)
@@ -458,7 +452,7 @@ namespace WebStat {
 			return std::unexpected(0);
 		}
 		const std::filesystem::path path {
-				settings.fallbackDir / std::format("parked-{:s}.short", bytesToHexRange(makeHash(lines.front())))};
+				settings.fallbackDir / std::format("parked-{:s}.short", makeHash(lines.front()) | TO_HEX_RANGE)};
 		if (auto parked = FilePtr(fopen(path.c_str(), "w"))) {
 			fprintf(parked.get(), "%zu\n", lines.size());
 			for (const auto & line : lines) {
