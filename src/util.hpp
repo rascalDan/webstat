@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <command.h>
+#include <filesystem>
 #include <scn/scan.h>
 #include <shared_mutex>
 #include <tuple>
@@ -144,4 +145,7 @@ namespace WebStat {
 		ValueType value;
 		mutable MutexType mutex;
 	};
+
+	std::error_code renameNoExcept(
+			const std::filesystem::path & path, const std::filesystem::path & finalPath) noexcept;
 }

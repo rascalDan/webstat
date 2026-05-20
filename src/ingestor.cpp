@@ -5,7 +5,9 @@
 #include <connection.h>
 #include <csignal>
 #include <dbTypes.h>
+#include <fstream>
 #include <modifycommand.h>
+#include <print>
 #include <ranges>
 #include <scn/scan.h>
 #include <selectcommand.h>
@@ -451,18 +453,18 @@ namespace WebStat {
 		if (lines.empty()) {
 			return std::unexpected(0);
 		}
-		const std::filesystem::path path {
-				settings.fallbackDir / std::format("parked-{:s}.short", makeHash(lines.front()) | TO_HEX_RANGE)};
-		if (auto parked = FilePtr(fopen(path.c_str(), "w"))) {
-			fprintf(parked.get(), "%zu\n", lines.size());
+		const std::filesystem::path path
+				= settings.fallbackDir / std::format("parked-{:s}.short", makeHash(lines.front()) | TO_HEX_RANGE);
+		if (std::ofstream parked {path}; parked.good()) {
+			std::println(parked, "{}", lines.size());
 			for (const auto & line : lines) {
-				fprintf(parked.get(), "%.*s\n", static_cast<int>(line.length()), line.data());
+				std::println(parked, "{}", line);
 			}
-			if (fflush(parked.get()) == 0) {
+			if (parked.flush().good()) {
 				lines.clear();
-				auto finalPath = std::filesystem::path {path}.replace_extension(".log");
-				parked.reset();
-				if (rename(path.c_str(), finalPath.c_str()) == 0) {
+				auto finalPath = auto {path}.replace_extension(".log");
+				parked.close();
+				if (!renameNoExcept(path, finalPath)) {
 					return finalPath;
 				}
 			}
