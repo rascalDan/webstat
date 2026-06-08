@@ -32,7 +32,6 @@ namespace WebStat {
 		minutes freqPurgeOldLogs = 6h;
 		unsigned int purgeDaysToKeep = 61; // ~2 months
 		unsigned int purgeDeleteMax = 10'000;
-		minutes purgeDeleteMaxTime = 5min;
 		seconds purgeDeletePause = 3s;
 		// NOLINTEND(readability-magic-numbers)
 	};

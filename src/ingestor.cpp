@@ -586,12 +586,11 @@ namespace WebStat {
 	Ingestor::jobPurgeOldLogs()
 	{
 		auto dbconn = dbpool->get();
-		const auto stopAt = Job::LastRunTime::clock::now() + settings.purgeDeleteMaxTime;
 		const auto purge = dbconn->modify(SQL::ACCESS_LOG_PURGE_OLD, SQL::ACCESS_LOG_PURGE_OLD_OPTS);
 		purge->bindParam(0, std::format("{} days", settings.purgeDaysToKeep));
 		purge->bindParam(1, settings.purgeDeleteMax);
 		unsigned int purgedTotal {};
-		while (!terminated && stopAt > Job::LastRunTime::clock::now()) {
+		while (!terminated) {
 			const auto purged = purge->execute();
 			purgedTotal += purged;
 			if (purged < settings.purgeDeleteMax) {
