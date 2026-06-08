@@ -43,7 +43,7 @@ namespace WebStat::SQL {
 	HASH_OPTS(ENTITY_UPDATE_DETAIL);
 	HASH_OPTS(HOST_UPSERT);
 	const DB::CommandOptionsPtr SELECT_UNINSERTABLE_OPTS
-			= std::make_shared<PQ::CommandOptions>(std::hash<std::string> {}(SELECT_UNINSERTABLE), 35, true);
+			= std::make_shared<PQ::CommandOptions>(std::hash<std::string> {}(SELECT_UNINSERTABLE), 35, false);
 	HASH_OPTS(DELETE_ENTITY);
 	HASH_OPTS(MARK_ENTITY_RETRIED);
 	HASH_OPTS(SET_ENTITY_TYPE);
