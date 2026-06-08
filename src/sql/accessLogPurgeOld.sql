@@ -5,8 +5,6 @@ WITH delete_batch AS (
 		access_log
 	WHERE
 		request_time < CURRENT_DATE - ?::interval
-	ORDER BY
-		request_time
 	FOR UPDATE
 LIMIT ?)
 DELETE FROM access_log AS al USING delete_batch AS del
