@@ -98,7 +98,6 @@ LANGUAGE plpgSQL
 RETURNS NULL ON NULL INPUT;
 
 CREATE TABLE access_log(
-	id bigint GENERATED ALWAYS AS IDENTITY,
 	hostname integer NOT NULL,
 	virtual_host integer NOT NULL,
 	remoteip inet NOT NULL,
@@ -113,7 +112,6 @@ CREATE TABLE access_log(
 	referrer integer,
 	user_agent integer,
 	content_type integer,
-	CONSTRAINT pk_access_log PRIMARY KEY (id),
 	CONSTRAINT fk_access_log_hostname FOREIGN KEY (hostname) REFERENCES entities(id) ON UPDATE CASCADE,
 	CONSTRAINT fk_access_log_virtualhost FOREIGN KEY (virtual_host) REFERENCES entities(id) ON UPDATE CASCADE,
 	CONSTRAINT fk_access_log_path FOREIGN KEY (path) REFERENCES entities(id) ON UPDATE CASCADE,
@@ -141,7 +139,6 @@ CREATE INDEX idx_access_log_virtual_host ON access_log(virtual_host);
 
 CREATE OR REPLACE VIEW access_log_view AS
 SELECT
-	l.id,
 	h.id hostname_id,
 	h.value hostname,
 	v.id virtual_host_id,
