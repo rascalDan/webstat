@@ -192,9 +192,9 @@ namespace WebStat {
 				QuotedString, // path : "%u" : "/foo/bar"
 				QueryString, // query_string : "%q" : "?query=string" or ""
 				std::string_view, // protocol : %r : HTTPS/2.0
-				unsigned short, // status : %>s : 200
-				unsigned int, // size : %B : 1234
-				unsigned int, // duration : %D : 1234
+				uint16_t, // status : %>s : 200
+				uint64_t, // size : %B : 1234
+				uint32_t, // duration : %D : 1234
 				CLFString, // referrer : "%{Referer}i" : "https://google.com/whatever" or "-"
 				CLFString, // user_agent : "%{User-agent}i" : "Chromium v123.4" or "-"
 				CLFString // content_type : "%{Content-type}o" : "test/plain" or "-"

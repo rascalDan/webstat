@@ -107,7 +107,7 @@ CREATE TABLE access_log(
 	path integer NOT NULL,
 	query_string integer,
 	status smallint NOT NULL,
-	size integer NOT NULL,
+	size bigint NOT NULL,
 	duration interval second(6) NOT NULL,
 	referrer integer,
 	user_agent integer,
