@@ -7,6 +7,7 @@
 #include <selectcommandUtil.impl.h>
 
 #include <ingestor.hpp>
+#include <sql.hpp>
 #include <uaLookup.hpp>
 
 namespace {
@@ -290,8 +291,19 @@ public:
 	mutable size_t logsWritten = 0;
 };
 
-BOOST_FIXTURE_TEST_SUITE(I, TestIngestor);
+static constexpr std::array<std::string_view, 9> ENTITY_TYPE_VALUES {{
+		{"host"},
+		{"virtual_host"},
+		{"path"},
+		{"query_string"},
+		{"referrer"},
+		{"user_agent"},
+		{"unparsable_line"},
+		{"uninsertable_line"},
+		{"content_type"},
+}};
 
+BOOST_FIXTURE_TEST_SUITE(I, TestIngestor);
 BOOST_TEST_DECORATOR(*boost::unit_test::depends_on("ExtractFields"))
 
 BOOST_DATA_TEST_CASE(StoreLogLine,
@@ -535,6 +547,43 @@ BOOST_AUTO_TEST_CASE(LogResetSignal)
 	stats = {1, 2, 3, 4, 5};
 	raise(SIGUSR2);
 	BOOST_CHECK_EQUAL(stats, Stats {});
+}
+
+using CreateEntitiesData = std::tuple<std::string_view, WebStat::EntityType, int>;
+
+BOOST_DATA_TEST_CASE(CreateEntities,
+		boost::unit_test::data::make<CreateEntitiesData>({
+				{"host1", WebStat::EntityType::Host, 31},
+				{"host2", WebStat::EntityType::Host, 33},
+				{"host3", WebStat::EntityType::Host, 35},
+				{"host1", WebStat::EntityType::Host, 31},
+				{"host2", WebStat::EntityType::Host, 33},
+				{"host3", WebStat::EntityType::Host, 35},
+				{"host1", WebStat::EntityType::VirtualHost, 40},
+				{"host2", WebStat::EntityType::VirtualHost, 42},
+				{"host3", WebStat::EntityType::VirtualHost, 44},
+				{"host1", WebStat::EntityType::VirtualHost, 40},
+				{"host2", WebStat::EntityType::VirtualHost, 42},
+				{"host3", WebStat::EntityType::VirtualHost, 44},
+				{"host2", WebStat::EntityType::Host, 33},
+				{"host1", WebStat::EntityType::VirtualHost, 40},
+				{"host3", WebStat::EntityType::Host, 35},
+				{"host1", WebStat::EntityType::Host, 31},
+		}),
+		value, type, expectedId)
+{
+	auto dbc = dbpool->get();
+	auto entityInsert = dbc->select(WebStat::SQL::ENTITY_INSERT, WebStat::SQL::ENTITY_INSERT_OPTS);
+	entityInsert->bindParamS(0, value);
+	entityInsert->bindParamS(1, ENTITY_TYPE_VALUES[std::to_underlying(type)]);
+	BOOST_REQUIRE_NO_THROW(entityInsert->execute());
+	size_t rows = 0;
+	for (auto [entityId, detailIsNull] : entityInsert->as<int, bool>()) {
+		++rows;
+		BOOST_REQUIRE_EQUAL(rows, 1);
+		BOOST_CHECK_EQUAL(entityId, expectedId);
+		BOOST_CHECK_EQUAL(detailIsNull, true);
+	}
 }
 
 BOOST_AUTO_TEST_SUITE_END();

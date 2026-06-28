@@ -57,11 +57,6 @@ DECLARE
 	recid integer;
 	nulldetail boolean;
 BEGIN
-	IF newValue IS NULL THEN
-		RETURN query
-	VALUES (NULL,
-		NULL);
-	END IF;
 	INSERT INTO entities(value, type)
 	SELECT
 		newValue,
@@ -72,26 +67,31 @@ BEGIN
 			FROM
 				entities
 			WHERE
-				md5(value) = md5(newValue))
+				md5(value) = md5(newValue)
+				AND type = newType)
 	ON CONFLICT
 		DO NOTHING
 	RETURNING
 		entities.id,
-		entities.detail IS NULL INTO recid,
+		entities.detail IS NULL
+	INTO
+		recid,
 		nulldetail;
 	IF recid IS NULL THEN
-		RETURN query
+		RETURN QUERY
 		SELECT
 			e.id,
 			e.detail IS NULL
 		FROM
 			entities e
 		WHERE
-			md5(e.value) = md5(newValue);
+			md5(e.value) = md5(newValue)
+			AND e.type = newType;
+	ELSE
+		RETURN QUERY
+	VALUES (recid,
+		nulldetail);
 	END IF;
-	RETURN query
-VALUES (recid,
-	nulldetail);
 END;
 $$
 LANGUAGE plpgSQL
