@@ -40,7 +40,7 @@ CREATE TABLE entities(
 	CONSTRAINT pk_entities PRIMARY KEY (id)
 );
 
-CREATE UNIQUE INDEX uni_entities_value ON entities(MD5(value));
+CREATE UNIQUE INDEX uni_entities_value ON entities(MD5(value), type);
 
 CREATE INDEX idx_entities_retryinsert ON entities(id)
 WHERE
