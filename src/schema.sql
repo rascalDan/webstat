@@ -36,13 +36,61 @@ CREATE TABLE entities(
 	id integer GENERATED ALWAYS AS IDENTITY,
 	value text NOT NULL,
 	type entity NOT NULL,
-	detail jsonb,
-	CONSTRAINT pk_entities PRIMARY KEY (id)
-);
+	detail jsonb
+)
+PARTITION BY LIST (type);
+
+CREATE TABLE hosts PARTITION OF entities
+FOR VALUES IN ('host');
+
+ALTER TABLE hosts
+	ADD CONSTRAINT pk_hosts PRIMARY KEY (id);
+
+CREATE TABLE virtual_hosts PARTITION OF entities
+FOR VALUES IN ('virtual_host');
+
+ALTER TABLE virtual_hosts
+	ADD CONSTRAINT pk_virtual_hosts PRIMARY KEY (id);
+
+CREATE TABLE paths PARTITION OF entities
+FOR VALUES IN ('path');
+
+ALTER TABLE paths
+	ADD CONSTRAINT pk_paths PRIMARY KEY (id);
+
+CREATE TABLE query_strings PARTITION OF entities
+FOR VALUES IN ('query_string');
+
+ALTER TABLE query_strings
+	ADD CONSTRAINT pk_query_strings PRIMARY KEY (id);
+
+CREATE TABLE referrers PARTITION OF entities
+FOR VALUES IN ('referrer');
+
+ALTER TABLE referrers
+	ADD CONSTRAINT pk_referrers PRIMARY KEY (id);
+
+CREATE TABLE user_agents PARTITION OF entities
+FOR VALUES IN ('user_agent');
+
+ALTER TABLE user_agents
+	ADD CONSTRAINT pk_user_agents PRIMARY KEY (id);
+
+CREATE TABLE content_types PARTITION OF entities
+FOR VALUES IN ('content_type');
+
+ALTER TABLE content_types
+	ADD CONSTRAINT pk_content_types PRIMARY KEY (id);
+
+CREATE TABLE bad_lines PARTITION OF entities
+FOR VALUES IN ('unparsable_line', 'uninsertable_line');
+
+ALTER TABLE bad_lines
+	ADD CONSTRAINT pk_bad_lines PRIMARY KEY (id);
 
 CREATE UNIQUE INDEX uni_entities_value ON entities(MD5(value), type);
 
-CREATE INDEX idx_entities_retryinsert ON entities(id)
+CREATE INDEX idx_entities_retryinsert ON bad_lines(id)
 WHERE
 	type = 'uninsertable_line' AND detail IS NULL;
 
@@ -112,28 +160,20 @@ CREATE TABLE access_log(
 	referrer integer,
 	user_agent integer,
 	content_type integer,
-	CONSTRAINT fk_access_log_hostname FOREIGN KEY (hostname) REFERENCES entities(id) ON UPDATE CASCADE,
-	CONSTRAINT fk_access_log_virtualhost FOREIGN KEY (virtual_host) REFERENCES entities(id) ON UPDATE CASCADE,
-	CONSTRAINT fk_access_log_path FOREIGN KEY (path) REFERENCES entities(id) ON UPDATE CASCADE,
-	CONSTRAINT fk_access_log_query_string FOREIGN KEY (query_string) REFERENCES entities(id) ON UPDATE CASCADE,
-	CONSTRAINT fk_access_log_referrer FOREIGN KEY (referrer) REFERENCES entities(id) ON UPDATE CASCADE,
-	CONSTRAINT fk_access_log_user_agent FOREIGN KEY (user_agent) REFERENCES entities(id) ON UPDATE CASCADE,
-	CONSTRAINT fk_access_log_content_type FOREIGN KEY (content_type) REFERENCES entities(id) ON UPDATE CASCADE
+	CONSTRAINT fk_access_log_hostname FOREIGN KEY (hostname) REFERENCES hosts(id) ON UPDATE CASCADE,
+	CONSTRAINT fk_access_log_virtualhost FOREIGN KEY (virtual_host) REFERENCES virtual_hosts(id) ON UPDATE CASCADE,
+	CONSTRAINT fk_access_log_path FOREIGN KEY (path) REFERENCES paths(id) ON UPDATE CASCADE,
+	CONSTRAINT fk_access_log_query_string FOREIGN KEY (query_string) REFERENCES query_strings(id) ON UPDATE CASCADE,
+	CONSTRAINT fk_access_log_referrer FOREIGN KEY (referrer) REFERENCES referrers(id) ON UPDATE CASCADE,
+	CONSTRAINT fk_access_log_user_agent FOREIGN KEY (user_agent) REFERENCES user_agents(id) ON UPDATE CASCADE,
+	CONSTRAINT fk_access_log_content_type FOREIGN KEY (content_type) REFERENCES content_types(id) ON UPDATE CASCADE
 );
-
-CREATE INDEX idx_access_log_content_type ON access_log(content_type);
-
-CREATE INDEX idx_access_log_hostname ON access_log(hostname);
 
 CREATE INDEX idx_access_log_path ON access_log(path);
 
 CREATE INDEX idx_access_log_query_string ON access_log(query_string);
 
-CREATE INDEX idx_access_log_referrer ON access_log(referrer);
-
 CREATE INDEX idx_access_log_request_time ON access_log USING BRIN(request_time) WITH (autosummarize = TRUE);
-
-CREATE INDEX idx_access_log_user_agent ON access_log(user_agent);
 
 CREATE INDEX idx_access_log_virtual_host ON access_log(virtual_host);
 
@@ -162,10 +202,10 @@ SELECT
 	c.value content_type
 FROM
 	access_log l
-	LEFT OUTER JOIN entities h ON l.hostname = h.id
-	LEFT OUTER JOIN entities v ON l.virtual_host = v.id
-	LEFT OUTER JOIN entities p ON l.path = p.id
-	LEFT OUTER JOIN entities q ON l.query_string = q.id
-	LEFT OUTER JOIN entities r ON l.referrer = r.id
-	LEFT OUTER JOIN entities u ON l.user_agent = u.id
-	LEFT OUTER JOIN entities c ON l.content_type = c.id;
+	LEFT OUTER JOIN hosts h ON l.hostname = h.id
+	LEFT OUTER JOIN virtual_hosts v ON l.virtual_host = v.id
+	LEFT OUTER JOIN paths p ON l.path = p.id
+	LEFT OUTER JOIN query_strings q ON l.query_string = q.id
+	LEFT OUTER JOIN referrers r ON l.referrer = r.id
+	LEFT OUTER JOIN user_agents u ON l.user_agent = u.id
+	LEFT OUTER JOIN content_types c ON l.content_type = c.id;
