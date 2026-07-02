@@ -34,6 +34,8 @@ run test-ingest.cpp :
 	-- :
 	../src/schema.sql
 	:
+	<dependency>fixtures/badHex.in.txt
+	<dependency>fixtures/badHex.exp.txt
 	<define>BOOST_TEST_DYN_LINK
 	<library>testing-util
 	<library>..//dbpp-postgresql
