@@ -409,10 +409,10 @@ BOOST_AUTO_TEST_CASE(ParkLogLine)
 BOOST_AUTO_TEST_CASE(ParkLogLineOnError, *boost::unit_test::depends_on("I/ParkLogLine"))
 {
 	BOOST_REQUIRE(existingEntities->empty());
-	constexpr std::string_view LOGLINE_BAD_VERB
-			= R"LOG(git.randomdan.homeip.net 98.82.40.168 1755561576768318 CAUSEPARSEFAIL "/repo/gentoobrowse-api/commit/gentoobrowse-api/unittests/fixtures/756569aa764177340726dd3d40b41d89b11b20c7/app-crypt/pdfcrack/Manifest" "?h=gentoobrowse-api-0.9.1&id=a2ed3fd30333721accd4b697bfcb6cc4165c7714" HTTP/1.1 200 1884 107791 "-" "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Amazonbot/0.1; +https://developer.amazon.com/support/amazonbot) Chrome/119.0.6045.214 Safari/537.36")LOG";
-	BOOST_REQUIRE_NO_THROW(ingestLogLines(dbpool->get().get(), {std::string {LOGLINE_BAD_VERB}}));
+	constexpr std::string_view UNPARSABLE_LINE = "UNPARSABLE";
+	BOOST_REQUIRE_NO_THROW(ingestLogLines(dbpool->get().get(), {std::string {UNPARSABLE_LINE}}));
 	BOOST_CHECK_EQUAL(stats.linesParseFailed, 1);
+	BOOST_CHECK(existingEntities->empty());
 }
 
 BOOST_AUTO_TEST_CASE(IngestParked, *boost::unit_test::depends_on("I/ParkLogLine"))
@@ -562,7 +562,7 @@ BOOST_AUTO_TEST_CASE(RetryUninsertableStillUninsertable)
 {
 	auto dbconn = dbpool->get();
 	constexpr std::string_view LOGLINE_UNINSERTABLE
-			= R"LOG(git.randomdan.homeip.net 98.82.40.168 1755561576768318 CAUSEPARSEFAIL "/repo/gentoobrowse-api/commit/gentoobrowse-api/unittests/fixtures/756569aa764177340726dd3d40b41d89b11b20c7/app-crypt/pdfcrack/Manifest" "?h=gentoobrowse-api-0.9.1&id=a2ed3fd30333721accd4b697bfcb6cc4165c7714" HTTP/1.1 200 1884 107791 "-" "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Amazonbot/0.1; +https://developer.amazon.com/support/amazonbot) Chrome/119.0.6045.214 Safari/537.36" "text/plain")LOG";
+			= R"LOG(git.randomdan.homeip.net 98.82.40.168 1755561576768318 CAUSEINSERTFAIL "/repo/gentoobrowse-api/commit/gentoobrowse-api/unittests/fixtures/756569aa764177340726dd3d40b41d89b11b20c7/app-crypt/pdfcrack/Manifest" "?h=gentoobrowse-api-0.9.1&id=a2ed3fd30333721accd4b697bfcb6cc4165c7714" HTTP/1.1 200 1884 107791 "-" "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Amazonbot/0.1; +https://developer.amazon.com/support/amazonbot) Chrome/119.0.6045.214 Safari/537.36" "text/plain")LOG";
 	Entity uninsertable {{}, {}, EntityType::UninsertableLine, LOGLINE_UNINSERTABLE};
 	storeNewEntity(dbconn.get(), uninsertable);
 	BOOST_REQUIRE(uninsertable.id);
