@@ -16,6 +16,12 @@ namespace WebStat::SQL {
 	const std::string ENTITY_INSERT {
 #embed "sql/entityInsert.sql"
 	};
+	const std::string UNPARSABLE_INSERT {
+#embed "sql/unparsableInsert.sql"
+	};
+	const std::string UNINSERTABLE_INSERT {
+#embed "sql/uninsertableInsert.sql"
+	};
 	const std::string ENTITY_UPDATE_DETAIL {
 #embed "sql/entityUpdateDetail.sql"
 	};
@@ -40,6 +46,8 @@ namespace WebStat::SQL {
 	HASH_OPTS(ACCESS_LOG_INSERT);
 	HASH_OPTS(ACCESS_LOG_PURGE_OLD);
 	HASH_OPTS(ENTITY_INSERT);
+	HASH_OPTS(UNPARSABLE_INSERT);
+	HASH_OPTS(UNINSERTABLE_INSERT);
 	HASH_OPTS(ENTITY_UPDATE_DETAIL);
 	HASH_OPTS(HOST_UPSERT);
 	const DB::CommandOptionsPtr SELECT_UNINSERTABLE_OPTS

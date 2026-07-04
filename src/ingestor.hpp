@@ -117,6 +117,8 @@ namespace WebStat {
 		void fillKnownEntities(std::span<Entity *>) const;
 		void storeNewEntities(DB::Connection *, std::span<Entity *>) const;
 		void storeNewEntity(DB::Connection *, Entity &) const;
+		EntityId storeUnparsableLine(DB::Connection *, std::string_view) const;
+		EntityId storeUninsertableLine(DB::Connection *, std::string_view, const std::exception &) const;
 		void onNewUserAgent(const Entity &) const;
 		auto withCurlLock(auto &&...);
 		bool haveCurlOperations();

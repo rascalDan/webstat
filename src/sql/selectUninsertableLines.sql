@@ -5,7 +5,7 @@ FROM
 	entities
 WHERE
 	type = 'uninsertable_line'
-	AND detail IS NULL
+	AND detail ->> 'retriedAt' IS NULL
 ORDER BY
 	id
 LIMIT ?

@@ -420,17 +420,16 @@ namespace WebStat {
 				try {
 					DB::TransactionScope lineTx {*dbconn};
 					storeNewEntities(dbconn, valuesEntities);
-					existingEntities()->insert_range(valuesEntities | ENTITY_IDS);
 					storeLogLine(dbconn, values);
+					existingEntities()->insert_range(valuesEntities | ENTITY_IDS);
 				}
 				catch (const DB::Error & originalError) {
 					try {
 						DB::TransactionScope lineTx {*dbconn};
-						auto uninsertableLine = ToEntity<EntityType::UninsertableLine> {}(line);
-						storeNewEntity(dbconn, uninsertableLine);
+						const auto uninsertableLineId = storeUninsertableLine(dbconn, line, originalError);
 						log(LOG_NOTICE,
 								"Failed to store parsed line and/or associated entties, but did store raw line, %u:%s",
-								*uninsertableLine.id, line.c_str());
+								uninsertableLineId, line.c_str());
 					}
 					catch (const std::exception & excp) {
 						log(LOG_NOTICE, "Failed to store line in any form, DB connection lost? %s", excp.what());
@@ -440,9 +439,8 @@ namespace WebStat {
 			}
 			else {
 				stats.linesParseFailed++;
-				auto unparsableLine = ToEntity<EntityType::UnparsableLine> {}(line);
-				storeNewEntity(dbconn, unparsableLine);
-				log(LOG_NOTICE, "Failed to parse line, this is a bug: %u:%s", *unparsableLine.id, line.c_str());
+				const auto unparsableLineId = storeUnparsableLine(dbconn, line);
+				log(LOG_NOTICE, "Failed to parse line, this is a bug: %u:%s", unparsableLineId, line.c_str());
 			}
 		}
 	}
@@ -650,6 +648,20 @@ namespace WebStat {
 			std::invoke(onInsert, this, entity);
 		}
 		stats.entitiesInserted += 1;
+	}
+
+	EntityId
+	Ingestor::storeUnparsableLine(DB::Connection * dbconn, const std::string_view line) const
+	{
+		return insert<EntityId>(dbconn, SQL::UNPARSABLE_INSERT, SQL::UNPARSABLE_INSERT_OPTS, line, hostnameId);
+	}
+
+	EntityId
+	Ingestor::storeUninsertableLine(
+			DB::Connection * dbconn, const std::string_view line, const std::exception & excp) const
+	{
+		return insert<EntityId>(
+				dbconn, SQL::UNINSERTABLE_INSERT, SQL::UNINSERTABLE_INSERT_OPTS, line, hostnameId, excp.what());
 	}
 
 	void

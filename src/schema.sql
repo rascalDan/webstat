@@ -92,7 +92,7 @@ CREATE UNIQUE INDEX uni_entities_value ON entities(MD5(value), type);
 
 CREATE INDEX idx_entities_retryinsert ON bad_lines(id)
 WHERE
-	type = 'uninsertable_line' AND detail IS NULL;
+	type = 'uninsertable_line' AND detail ->> 'retriedAt' IS NULL;
 
 CREATE OR REPLACE FUNCTION entity(newValue text, newType entity)
 	RETURNS TABLE(

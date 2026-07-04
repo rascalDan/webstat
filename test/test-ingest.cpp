@@ -504,7 +504,7 @@ BOOST_AUTO_TEST_CASE(FetchMockUserAgentDetail)
 	}
 }
 
-BOOST_AUTO_TEST_CASE(DiscardUnparsable)
+BOOST_AUTO_TEST_CASE(RecordUnparsable)
 {
 	queuedLines.emplace_back("does not parse");
 	auto job = beginIngestQueuedLogLines();
@@ -512,63 +512,110 @@ BOOST_AUTO_TEST_CASE(DiscardUnparsable)
 	BOOST_CHECK(job.second);
 	finishAllJobs();
 	auto dbconn = dbpool->get();
-	auto select = dbconn->select("SELECT id::bigint, value FROM entities WHERE type = 'unparsable_line'");
-	constexpr std::array<std::tuple<EntityId, std::string_view>, 1> EXPECTED {{
-			{18, "does not parse"},
+	auto select = dbconn->select(
+			R"(SELECT id::bigint, value, detail ? 'timestamp' has_ts, (detail->>'hostnameId')::int hostnameId
+			FROM entities
+			WHERE type = 'unparsable_line')");
+	constexpr std::array<std::tuple<EntityId, std::string_view, bool, uint32_t>, 1> EXPECTED {{
+			{18, "does not parse", true, 1},
 	}};
-	auto rows = select->as<EntityId, std::string_view>();
+	auto rows = select->as<EntityId, std::string_view, bool, uint32_t>();
 	BOOST_CHECK_EQUAL_COLLECTIONS(rows.begin(), rows.end(), EXPECTED.begin(), EXPECTED.end());
+	BOOST_CHECK_EQUAL(stats.linesParsed, 0);
 	BOOST_CHECK_EQUAL(stats.linesParseFailed, 1);
-	BOOST_CHECK_EQUAL(stats.entitiesInserted, 1);
+	BOOST_CHECK_EQUAL(stats.entitiesInserted, 0);
 	BOOST_CHECK(existingEntities->empty()); // Don't clutter existing entities with junk logs
+}
+
+BOOST_AUTO_TEST_CASE(RecordUninsertable)
+{
+	auto dbconn = dbpool->get();
+	{ // Part 1: bad HTTP verb causes insert failure after storing entities
+		constexpr std::string_view LOGLINE_UNINSERTABLE
+				= R"LOG(git.randomdan.homeip.net 98.82.40.168 1755561576768319 CAUSEINSERTFAIL "/repo/gentoobrowse-api/commit/gentoobrowse-api/unittests/fixtures/756569aa764177340726dd3d40b41d89b11b20c7/app-crypt/pdfcrack/Manifest" "?h=gentoobrowse-api-0.9.1&id=a2ed3fd30333721accd4b697bfcb6cc4165c7714" HTTP/1.1 200 1884 107791 "-" "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Amazonbot/0.1; +https://developer.amazon.com/support/amazonbot) Chrome/119.0.6045.214 Safari/537.36" "text/plain")LOG";
+		queuedLines.emplace_back(LOGLINE_UNINSERTABLE);
+		auto job = beginIngestQueuedLogLines();
+		BOOST_CHECK_EQUAL(&job.first, &*storeQueueLines.currentRun);
+		BOOST_CHECK(job.second);
+		finishAllJobs();
+		auto select = dbconn->select(
+				R"(SELECT id::bigint, value, detail ? 'timestamp' has_ts, (detail->>'hostnameId')::int hostnameId, (detail->>'error')::text
+			FROM entities
+			WHERE type = 'uninsertable_line')");
+		constexpr std::array<std::tuple<EntityId, std::string_view, bool, uint32_t, std::string_view>, 1> EXPECTED {{
+				{21, LOGLINE_UNINSERTABLE, true, 1,
+						"ERROR:  invalid input value for enum http_verb: \"CAUSEINSERTFAIL\"\n"
+						"CONTEXT:  unnamed portal parameter $5 = '...'\n"},
+		}};
+		auto rows = select->as<EntityId, std::string_view, bool, uint32_t, std::string_view>();
+		BOOST_CHECK_EQUAL_COLLECTIONS(rows.begin(), rows.end(), EXPECTED.begin(), EXPECTED.end());
+		BOOST_CHECK_EQUAL(stats.linesParsed, 1);
+		BOOST_CHECK_EQUAL(stats.logsInserted, 0);
+		BOOST_CHECK_EQUAL(stats.linesParseFailed, 0);
+		BOOST_CHECK_EQUAL(stats.entitiesInserted, 5); // 5 were inserted, but the savepoint was rolled back
+		BOOST_CHECK(existingEntities->empty()); // ... so existing entities should be empty
+	}
+
+	{ // Part 2: corrected HTTP verb allows insert, requires that the entities are re-stored
+		constexpr std::string_view LOGLINE_UNINSERTABLE_GET
+				= R"LOG(git.randomdan.homeip.net 98.82.40.168 1755561576768320 GET "/repo/gentoobrowse-api/commit/gentoobrowse-api/unittests/fixtures/756569aa764177340726dd3d40b41d89b11b20c7/app-crypt/pdfcrack/Manifest" "?h=gentoobrowse-api-0.9.1&id=a2ed3fd30333721accd4b697bfcb6cc4165c7714" HTTP/1.1 200 1884 107791 "-" "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Amazonbot/0.1; +https://developer.amazon.com/support/amazonbot) Chrome/119.0.6045.214 Safari/537.36" "text/plain")LOG";
+		queuedLines.emplace_back(LOGLINE_UNINSERTABLE_GET);
+		{
+			auto job = beginIngestQueuedLogLines();
+			BOOST_CHECK_EQUAL(&job.first, &*storeQueueLines.currentRun);
+			BOOST_CHECK(job.second);
+			finishAllJobs();
+		}
+		BOOST_CHECK_EQUAL(stats.linesParsed, 2);
+		BOOST_CHECK_EQUAL(stats.logsInserted, 1);
+		BOOST_CHECK_EQUAL(stats.entitiesInserted, 10);
+		BOOST_CHECK_EQUAL(existingEntities->size(), 5);
+	}
 }
 
 BOOST_AUTO_TEST_CASE(PurgeOldJob)
 {
-	BOOST_CHECK_EQUAL(2, jobPurgeOldLogs()());
+	BOOST_CHECK_EQUAL(3, jobPurgeOldLogs()());
 }
 
-BOOST_AUTO_TEST_CASE(RetryUninsertableNone)
+BOOST_AUTO_TEST_CASE(RetryUninsertableNone, *boost::unit_test::timeout(1))
 {
 	BOOST_CHECK_EQUAL(0, jobRetryUninsertableLines()());
 }
 
-BOOST_AUTO_TEST_CASE(RetryUninsertableSuccess)
+BOOST_AUTO_TEST_CASE(RetryUninsertableSuccess, *boost::unit_test::timeout(1))
 {
 	auto dbconn = dbpool->get();
-	Entity uninsertable {{}, {}, EntityType::UninsertableLine, LOGLINE1};
-	storeNewEntity(dbconn.get(), uninsertable);
-	BOOST_REQUIRE(uninsertable.id);
-	BOOST_REQUIRE(getEntityById(dbconn.get(), *uninsertable.id));
+	const auto uninsertableLineId = storeUninsertableLine(dbconn.get(), LOGLINE1, std::runtime_error {"some error"});
+	BOOST_REQUIRE(getEntityById(dbconn.get(), uninsertableLineId));
 
 	BOOST_CHECK_EQUAL(1, jobRetryUninsertableLines()());
-	BOOST_REQUIRE(!getEntityById(dbconn.get(), *uninsertable.id));
+	BOOST_REQUIRE(!getEntityById(dbconn.get(), uninsertableLineId));
 }
 
-BOOST_AUTO_TEST_CASE(RetryUninsertableNowUnparsable)
+BOOST_AUTO_TEST_CASE(RetryUninsertableNowUnparsable, *boost::unit_test::timeout(1))
 {
 	auto dbconn = dbpool->get();
-	Entity uninsertable {{}, {}, EntityType::UninsertableLine, "blah"};
-	storeNewEntity(dbconn.get(), uninsertable);
-	BOOST_REQUIRE(uninsertable.id);
+	const auto uninsertableId = storeUninsertableLine(dbconn.get(), "blah", std::runtime_error {"some error"});
+	BOOST_REQUIRE(uninsertableId);
 
 	BOOST_CHECK_EQUAL(0, jobRetryUninsertableLines()());
-	auto updatedEntity = getEntityById(dbconn.get(), *uninsertable.id);
+	auto updatedEntity = getEntityById(dbconn.get(), uninsertableId);
 	BOOST_REQUIRE(updatedEntity);
 	BOOST_CHECK_EQUAL(std::get<1>(*updatedEntity), EntityType::UnparsableLine);
 }
 
-BOOST_AUTO_TEST_CASE(RetryUninsertableStillUninsertable)
+BOOST_AUTO_TEST_CASE(RetryUninsertableStillUninsertable, *boost::unit_test::timeout(1))
 {
 	auto dbconn = dbpool->get();
 	constexpr std::string_view LOGLINE_UNINSERTABLE
 			= R"LOG(git.randomdan.homeip.net 98.82.40.168 1755561576768318 CAUSEINSERTFAIL "/repo/gentoobrowse-api/commit/gentoobrowse-api/unittests/fixtures/756569aa764177340726dd3d40b41d89b11b20c7/app-crypt/pdfcrack/Manifest" "?h=gentoobrowse-api-0.9.1&id=a2ed3fd30333721accd4b697bfcb6cc4165c7714" HTTP/1.1 200 1884 107791 "-" "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Amazonbot/0.1; +https://developer.amazon.com/support/amazonbot) Chrome/119.0.6045.214 Safari/537.36" "text/plain")LOG";
-	Entity uninsertable {{}, {}, EntityType::UninsertableLine, LOGLINE_UNINSERTABLE};
-	storeNewEntity(dbconn.get(), uninsertable);
-	BOOST_REQUIRE(uninsertable.id);
+	const auto uninsertableId
+			= storeUninsertableLine(dbconn.get(), LOGLINE_UNINSERTABLE, std::runtime_error {"some error"});
+	BOOST_REQUIRE(uninsertableId);
 
 	BOOST_CHECK_EQUAL(0, jobRetryUninsertableLines()());
-	auto updatedEntity = getEntityById(dbconn.get(), *uninsertable.id);
+	const auto updatedEntity = getEntityById(dbconn.get(), uninsertableId);
 	BOOST_REQUIRE(updatedEntity);
 	BOOST_CHECK_EQUAL(std::get<1>(*updatedEntity), EntityType::UninsertableLine);
 	const auto & detail = std::get<3>(*updatedEntity);
@@ -600,22 +647,22 @@ using CreateEntitiesData = std::tuple<std::string_view, WebStat::EntityType, int
 
 BOOST_DATA_TEST_CASE(CreateEntities,
 		boost::unit_test::data::make<CreateEntitiesData>({
-				{"host1", WebStat::EntityType::Host, 31},
-				{"host2", WebStat::EntityType::Host, 33},
-				{"host3", WebStat::EntityType::Host, 35},
-				{"host1", WebStat::EntityType::Host, 31},
-				{"host2", WebStat::EntityType::Host, 33},
-				{"host3", WebStat::EntityType::Host, 35},
-				{"host1", WebStat::EntityType::VirtualHost, 40},
-				{"host2", WebStat::EntityType::VirtualHost, 42},
-				{"host3", WebStat::EntityType::VirtualHost, 44},
-				{"host1", WebStat::EntityType::VirtualHost, 40},
-				{"host2", WebStat::EntityType::VirtualHost, 42},
-				{"host3", WebStat::EntityType::VirtualHost, 44},
-				{"host2", WebStat::EntityType::Host, 33},
-				{"host1", WebStat::EntityType::VirtualHost, 40},
-				{"host3", WebStat::EntityType::Host, 35},
-				{"host1", WebStat::EntityType::Host, 31},
+				{"host1", WebStat::EntityType::Host, 34},
+				{"host2", WebStat::EntityType::Host, 36},
+				{"host3", WebStat::EntityType::Host, 38},
+				{"host1", WebStat::EntityType::Host, 34},
+				{"host2", WebStat::EntityType::Host, 36},
+				{"host3", WebStat::EntityType::Host, 38},
+				{"host1", WebStat::EntityType::VirtualHost, 43},
+				{"host2", WebStat::EntityType::VirtualHost, 45},
+				{"host3", WebStat::EntityType::VirtualHost, 47},
+				{"host1", WebStat::EntityType::VirtualHost, 43},
+				{"host2", WebStat::EntityType::VirtualHost, 45},
+				{"host3", WebStat::EntityType::VirtualHost, 47},
+				{"host2", WebStat::EntityType::Host, 36},
+				{"host1", WebStat::EntityType::VirtualHost, 43},
+				{"host3", WebStat::EntityType::Host, 38},
+				{"host1", WebStat::EntityType::Host, 34},
 		}),
 		value, type, expectedId)
 {
