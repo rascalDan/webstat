@@ -1,6 +1,7 @@
 SELECT
 	id,
-	value
+	value,
+	cast(detail ->> 'hostnameId' AS int) AS hostnameId
 FROM
 	entities
 WHERE

@@ -345,12 +345,13 @@ namespace WebStat {
 		auto deleteLine = dbconn->modify(SQL::DELETE_ENTITY, SQL::DELETE_ENTITY_OPTS);
 		auto setEntityUnparsable = dbconn->modify(SQL::SET_ENTITY_TYPE, SQL::SET_ENTITY_TYPE_OPTS);
 		setEntityUnparsable->bindParamS(0, "unparsable_line");
+		auto insert = dbconn->modify(SQL::ACCESS_LOG_INSERT, SQL::ACCESS_LOG_INSERT_OPTS);
 
 		unsigned int stored = 0;
 		while (!terminated) {
 			unsigned int batchSize = 0;
 			DB::TransactionScope batchTx {*dbconn};
-			for (auto [id, line] : lineSelect->as<EntityId, std::string>()) {
+			for (auto [id, line, originalHostnameId] : lineSelect->as<EntityId, std::string, EntityId>()) {
 				batchSize += 1;
 				try {
 					DB::TransactionScope lineTx {*dbconn};
@@ -359,8 +360,9 @@ namespace WebStat {
 						auto valuesEntities = entities(values);
 						fillKnownEntities(valuesEntities);
 						storeNewEntities(dbconn, valuesEntities);
+						insert->bindParam(0, originalHostnameId);
+						storeLogLine(insert.get(), values);
 						existingEntities()->insert_range(valuesEntities | ENTITY_IDS);
-						storeLogLine(dbconn, values);
 
 						deleteLine->bindParamI(0, id);
 						deleteLine->execute();
@@ -411,6 +413,8 @@ namespace WebStat {
 	Ingestor::ingestLogLines(DB::Connection * dbconn, const LinesView lines)
 	{
 		DB::TransactionScope batchTx {*dbconn};
+		auto insert = dbconn->modify(SQL::ACCESS_LOG_INSERT, SQL::ACCESS_LOG_INSERT_OPTS);
+		insert->bindParam(0, hostnameId);
 		for (const auto & line : lines) {
 			if (auto result = scanLogLine(line)) {
 				stats.linesParsed++;
@@ -420,7 +424,7 @@ namespace WebStat {
 				try {
 					DB::TransactionScope lineTx {*dbconn};
 					storeNewEntities(dbconn, valuesEntities);
-					storeLogLine(dbconn, values);
+					storeLogLine(insert.get(), values);
 					existingEntities()->insert_range(valuesEntities | ENTITY_IDS);
 				}
 				catch (const DB::Error & originalError) {
@@ -678,11 +682,8 @@ namespace WebStat {
 
 	template<typename... T>
 	void
-	Ingestor::storeLogLine(DB::Connection * dbconn, const std::tuple<T...> & values) const
+	Ingestor::storeLogLine(DB::ModifyCommand * insert, const std::tuple<T...> & values) const
 	{
-		auto insert = dbconn->modify(SQL::ACCESS_LOG_INSERT, SQL::ACCESS_LOG_INSERT_OPTS);
-
-		insert->bindParam(0, hostnameId);
 		std::apply(
 				[&insert](auto &&... value) {
 					unsigned int param = 1;

@@ -81,7 +81,7 @@ namespace WebStat {
 		Job::Result jobStoreQueuedLines();
 		Job::Result jobRetryUninsertableLines();
 
-		template<typename... T> void storeLogLine(DB::Connection *, const std::tuple<T...> &) const;
+		template<typename... T> void storeLogLine(DB::ModifyCommand * insert, const std::tuple<T...> &) const;
 
 		IngestorSettings settings;
 

@@ -94,6 +94,9 @@ CREATE INDEX idx_entities_retryinsert ON bad_lines(id)
 WHERE
 	type = 'uninsertable_line' AND detail ->> 'retriedAt' IS NULL;
 
+ALTER TABLE bad_lines
+	ADD CONSTRAINT bad_lines_have_hostnameid CHECK (detail ? 'hostnameId');
+
 CREATE OR REPLACE FUNCTION entity(newValue text, newType entity)
 	RETURNS TABLE(
 		id integer,
