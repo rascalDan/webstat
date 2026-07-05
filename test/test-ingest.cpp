@@ -303,6 +303,15 @@ BOOST_AUTO_TEST_CASE(ExtractFieldsEdgeCasesUnparsable3482917779)
 			R"LOG(lang=../../../../../../../../usr/local/lib/php/pearcmd&+config-create+/&/<?echo(md5("hi"));?>+/tmp/index1.php)LOG");
 }
 
+BOOST_AUTO_TEST_CASE(ExtractFieldsEdgeCasesUnparsable3354288) // Long duration
+{
+	const auto result = WebStat::Ingestor::scanLogLine(
+			R"LOG(git.randomdan.homeip.net 216.73.216.212 1770062062011035 GET "/repo/netfs/patch/libfusepp" "?id=46f6aa3507120f4b69a54abc02d8829eac005b6f" HTTP/2.0 200 1 7361204168 "-" "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; ClaudeBot/1.0; +claudebot@anthropic.com)" "text/plain")LOG");
+	BOOST_REQUIRE(result);
+	const auto duration = std::get<9>(result->values());
+	BOOST_CHECK_EQUAL(7361204168, duration);
+}
+
 class TestIngestor : public WebStat::Ingestor {
 public:
 	TestIngestor() :
