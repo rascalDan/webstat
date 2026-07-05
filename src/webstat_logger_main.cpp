@@ -1,6 +1,7 @@
 #include "ingestor.hpp"
 #include "util.hpp"
 #include <boost/program_options.hpp>
+#include <flat_map>
 #include <format>
 #include <iostream>
 #include <pq-connection.h>
@@ -31,6 +32,23 @@ namespace {
 			va_end(args);
 		}
 	};
+
+	int
+	runJobByName(WebStat::Ingestor & ingestor, const std::string_view jobName)
+	{
+		const std::flat_map<std::string_view, WebStat::Ingestor::Job::Result (WebStat::Ingestor::*)()> jobs {
+				{"retry-uninsertable", &WebStat::Ingestor::jobRetryUninsertableLines},
+				{"purge-old-logs", &WebStat::Ingestor::jobPurgeOldLogs},
+		};
+		if (const auto job = jobs.find(jobName); job != jobs.end()) {
+			std::println(std::cout, "Running job {}...", jobName);
+			const auto result = (ingestor.*(job->second))()();
+			std::println(std::cout, "Result: {}", result);
+			return EXIT_SUCCESS;
+		}
+		std::println(std::cerr, "Job {} does not exist", jobName);
+		return EXIT_FAILURE;
+	}
 }
 
 #define LEXICAL_CAST_DURATION(UNIT) \
@@ -58,6 +76,7 @@ main(int argc, char ** argv)
 	// clang-format off
 	opts.add_options()
 		("help,h", "Show this help message")
+		("job", po::value<std::string>(), "Run only this job once and exit")
 		("config,c", po::value<std::string>(), "Read config from this config file")
 		("db.type", po::value(&settings.dbType)->default_value(settings.dbType),
 		 "Database connection type")
@@ -101,7 +120,13 @@ main(int argc, char ** argv)
 	po::notify(optVars);
 
 	try {
-		MainIngestor {getHostDetail(), std::move(settings)}.ingestLog(stdin);
+		MainIngestor ingestor {getHostDetail(), std::move(settings)};
+
+		if (const auto jobNameItr = optVars.find("job"); jobNameItr != optVars.end()) {
+			return runJobByName(ingestor, jobNameItr->second.as<std::string>());
+		}
+
+		ingestor.ingestLog(stdin);
 		return EXIT_SUCCESS;
 	}
 	catch (const std::exception & excp) {
