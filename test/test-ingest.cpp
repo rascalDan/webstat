@@ -367,9 +367,10 @@ BOOST_DATA_TEST_CASE(StoreLogLine,
 				LOGLINE1,
 				LOGLINE2,
 		}),
-		line)
+		lineIn)
 {
-	ingestLogLines(DB::MockDatabase::openConnectionTo("webstat").get(), {std::string {line}});
+	const std::string line {lineIn};
+	ingestLogLines(DB::MockDatabase::openConnectionTo("webstat").get(), {&line, 1});
 	BOOST_CHECK_EQUAL(stats.linesRead, 0);
 	BOOST_CHECK_EQUAL(stats.linesParsed, 1);
 	BOOST_CHECK_EQUAL(stats.linesParseFailed, 0);
@@ -418,8 +419,8 @@ BOOST_AUTO_TEST_CASE(ParkLogLine)
 BOOST_AUTO_TEST_CASE(ParkLogLineOnError, *boost::unit_test::depends_on("I/ParkLogLine"))
 {
 	BOOST_REQUIRE(existingEntities->empty());
-	constexpr std::string_view UNPARSABLE_LINE = "UNPARSABLE";
-	BOOST_REQUIRE_NO_THROW(ingestLogLines(dbpool->get().get(), {std::string {UNPARSABLE_LINE}}));
+	static constexpr std::string UNPARSABLE_LINE = "UNPARSABLE";
+	BOOST_REQUIRE_NO_THROW(ingestLogLines(dbpool->get().get(), {&UNPARSABLE_LINE, 1}));
 	BOOST_CHECK_EQUAL(stats.linesParseFailed, 1);
 	BOOST_CHECK(existingEntities->empty());
 }
