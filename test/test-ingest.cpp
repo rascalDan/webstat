@@ -514,6 +514,8 @@ BOOST_AUTO_TEST_CASE(FetchMockUserAgentDetail)
 	}
 }
 
+constexpr EntityId rollingEntityCounterBase = 18;
+
 BOOST_AUTO_TEST_CASE(RecordUnparsable)
 {
 	queuedLines.emplace_back("does not parse");
@@ -527,7 +529,7 @@ BOOST_AUTO_TEST_CASE(RecordUnparsable)
 			FROM entities
 			WHERE type = 'unparsable_line')");
 	constexpr std::array<std::tuple<EntityId, std::string_view, bool, uint32_t>, 1> EXPECTED {{
-			{18, "does not parse", true, 1},
+			{rollingEntityCounterBase, "does not parse", true, 1},
 	}};
 	auto rows = select->as<EntityId, std::string_view, bool, uint32_t>();
 	BOOST_CHECK_EQUAL_COLLECTIONS(rows.begin(), rows.end(), EXPECTED.begin(), EXPECTED.end());
@@ -553,7 +555,7 @@ BOOST_AUTO_TEST_CASE(RecordUninsertable)
 			FROM entities
 			WHERE type = 'uninsertable_line')");
 		constexpr std::array<std::tuple<EntityId, std::string_view, bool, uint32_t, std::string_view>, 1> EXPECTED {{
-				{21, LOGLINE_UNINSERTABLE, true, 1,
+				{rollingEntityCounterBase + 3, LOGLINE_UNINSERTABLE, true, 1,
 						"ERROR:  invalid input value for enum http_verb: \"CAUSEINSERTFAIL\"\n"
 						"CONTEXT:  unnamed portal parameter $5 = '...'\n"},
 		}};
@@ -657,22 +659,22 @@ using CreateEntitiesData = std::tuple<std::string_view, WebStat::EntityType, int
 
 BOOST_DATA_TEST_CASE(CreateEntities,
 		boost::unit_test::data::make<CreateEntitiesData>({
-				{"host1", WebStat::EntityType::Host, 34},
-				{"host2", WebStat::EntityType::Host, 36},
-				{"host3", WebStat::EntityType::Host, 38},
-				{"host1", WebStat::EntityType::Host, 34},
-				{"host2", WebStat::EntityType::Host, 36},
-				{"host3", WebStat::EntityType::Host, 38},
-				{"host1", WebStat::EntityType::VirtualHost, 43},
-				{"host2", WebStat::EntityType::VirtualHost, 45},
-				{"host3", WebStat::EntityType::VirtualHost, 47},
-				{"host1", WebStat::EntityType::VirtualHost, 43},
-				{"host2", WebStat::EntityType::VirtualHost, 45},
-				{"host3", WebStat::EntityType::VirtualHost, 47},
-				{"host2", WebStat::EntityType::Host, 36},
-				{"host1", WebStat::EntityType::VirtualHost, 43},
-				{"host3", WebStat::EntityType::Host, 38},
-				{"host1", WebStat::EntityType::Host, 34},
+				{"host1", WebStat::EntityType::Host, rollingEntityCounterBase + 16},
+				{"host2", WebStat::EntityType::Host, rollingEntityCounterBase + 18},
+				{"host3", WebStat::EntityType::Host, rollingEntityCounterBase + 20},
+				{"host1", WebStat::EntityType::Host, rollingEntityCounterBase + 16},
+				{"host2", WebStat::EntityType::Host, rollingEntityCounterBase + 18},
+				{"host3", WebStat::EntityType::Host, rollingEntityCounterBase + 20},
+				{"host1", WebStat::EntityType::VirtualHost, rollingEntityCounterBase + 25},
+				{"host2", WebStat::EntityType::VirtualHost, rollingEntityCounterBase + 27},
+				{"host3", WebStat::EntityType::VirtualHost, rollingEntityCounterBase + 29},
+				{"host1", WebStat::EntityType::VirtualHost, rollingEntityCounterBase + 25},
+				{"host2", WebStat::EntityType::VirtualHost, rollingEntityCounterBase + 27},
+				{"host3", WebStat::EntityType::VirtualHost, rollingEntityCounterBase + 29},
+				{"host2", WebStat::EntityType::Host, rollingEntityCounterBase + 18},
+				{"host1", WebStat::EntityType::VirtualHost, rollingEntityCounterBase + 25},
+				{"host3", WebStat::EntityType::Host, rollingEntityCounterBase + 20},
+				{"host1", WebStat::EntityType::Host, rollingEntityCounterBase + 16},
 		}),
 		value, type, expectedId)
 {
