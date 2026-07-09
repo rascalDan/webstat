@@ -248,6 +248,8 @@ constexpr std::string_view LOGLINE1
 		= R"LOG(git.randomdan.homeip.net 98.82.40.168 1755561576768318 GET "/repo/gentoobrowse-api/commit/gentoobrowse-api/unittests/fixtures/756569aa764177340726dd3d40b41d89b11b20c7/app-crypt/pdfcrack/Manifest" "?h=gentoobrowse-api-0.9.1&id=a2ed3fd30333721accd4b697bfcb6cc4165c7714" HTTP/1.1 200 1884 107791 "-" "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Amazonbot/0.1; +https://developer.amazon.com/support/amazonbot) Chrome/119.0.6045.214 Safari/537.36" "test/plain")LOG";
 constexpr std::string_view LOGLINE2
 		= R"LOG(www.randomdan.homeip.net 43.128.84.166 1755561575973204 GET "/app-dicts/myspell-et/Manifest" "" HTTP/1.1 200 312 10369 "https://google.com" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36" "image/png")LOG";
+constexpr std::string_view LOGLINE_DUPES
+		= R"LOG(www.randomdan.homeip.net 43.128.84.166 1755561575973204 GET "/app-dicts/myspell-et/Manifest" "" HTTP/1.1 200 312 10369 "www.randomdan.homeip.net" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36" "image/png")LOG";
 
 BOOST_TEST_DECORATOR(*boost::unit_test::depends_on("QuotedStringsGood"))
 BOOST_TEST_DECORATOR(*boost::unit_test::depends_on("QueryStringsGood"))
@@ -377,6 +379,18 @@ BOOST_DATA_TEST_CASE(StoreLogLine,
 	BOOST_CHECK_EQUAL(stats.logsInserted, 1);
 	BOOST_CHECK_EQUAL(stats.entitiesInserted, 5);
 	BOOST_CHECK_EQUAL(existingEntities->size(), 5);
+}
+
+BOOST_AUTO_TEST_CASE(StoreLogLines_WithDuplicateOfDifferentType, *boost::unit_test::depends_on("I/StoreLogLine"))
+{
+	const std::vector lines {std::string {LOGLINE1}, std::string {LOGLINE2}, std::string {LOGLINE_DUPES}};
+	ingestLogLines(DB::MockDatabase::openConnectionTo("webstat").get(), lines);
+	BOOST_CHECK_EQUAL(stats.linesRead, 0);
+	BOOST_CHECK_EQUAL(stats.linesParsed, 3);
+	BOOST_CHECK_EQUAL(stats.linesParseFailed, 0);
+	BOOST_CHECK_EQUAL(stats.logsInserted, 3);
+	BOOST_CHECK_EQUAL(stats.entitiesInserted, 11);
+	BOOST_CHECK_EQUAL(existingEntities->size(), 11);
 }
 
 BOOST_AUTO_TEST_CASE(StoreLog, *boost::unit_test::depends_on("I/StoreLogLine"))

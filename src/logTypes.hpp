@@ -38,10 +38,15 @@ namespace WebStat {
 	using EntityId = int32_t;
 	using EntityHash = std::array<uint8_t, MD5_DIGEST_LENGTH>;
 
-	struct Entity {
+	struct EntityKey {
 		EntityHash hash;
-		std::optional<EntityId> id;
 		EntityType type;
+		constexpr auto operator<=>(const EntityKey &) const noexcept = default;
+	};
+
+	struct Entity {
+		EntityKey key;
+		std::optional<EntityId> id;
 		std::string_view value;
 	};
 }

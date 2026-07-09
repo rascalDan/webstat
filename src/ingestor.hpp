@@ -101,7 +101,7 @@ namespace WebStat {
 		DB::ConnectionPoolPtr dbpool;
 		mutable Stats stats {};
 
-		ThreadSafeT<std::map<EntityHash, EntityId>> existingEntities;
+		ThreadSafeT<std::map<EntityKey, EntityId>> existingEntities;
 		LineBatch queuedLines, processingLines;
 
 		bool terminated = false;

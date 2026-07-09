@@ -53,9 +53,11 @@ namespace WebStat {
 			operator()(const std::string_view value) const
 			{
 				return {
-						.hash = makeHash(value),
+						.key = {
+								.hash = makeHash(value),
+								.type = Type,
+						},
 						.id = std::nullopt,
-						.type = Type,
 						.value = value,
 				};
 			}
@@ -331,7 +333,7 @@ namespace WebStat {
 	}
 
 	constexpr auto ENTITY_IDS = std::views::transform([](auto && value) {
-		return std::make_pair(value->hash, *value->id);
+		return std::tie(value->key, *value->id);
 	});
 
 	Ingestor::Job::Result
@@ -610,7 +612,7 @@ namespace WebStat {
 	{
 		auto lockedEntities = existingEntities.shared();
 		for (const auto entity : entities) {
-			if (auto existing = lockedEntities->find(entity->hash); existing != lockedEntities->end()) {
+			if (auto existing = lockedEntities->find(entity->key); existing != lockedEntities->end()) {
 				entity->id = existing->second;
 			}
 		}
@@ -644,7 +646,7 @@ namespace WebStat {
 				}};
 
 		assert(!entity.id);
-		const auto & [typeName, onInsert] = ENTITY_TYPE_VALUES[std::to_underlying(entity.type)];
+		const auto & [typeName, onInsert] = ENTITY_TYPE_VALUES[std::to_underlying(entity.key.type)];
 		bool entityNullDetail = true;
 		std::tie(entity.id, entityNullDetail)
 				= insert<EntityId, bool>(dbconn, SQL::ENTITY_INSERT, SQL::ENTITY_INSERT_OPTS, entity.value, typeName);
@@ -671,7 +673,7 @@ namespace WebStat {
 	void
 	Ingestor::onNewUserAgent(const Entity & entity) const
 	{
-		const auto & [entityHash, entityId, type, value] = entity;
+		const auto & [_, entityId, value] = entity;
 		auto curlOp = curlGetUserAgentDetail(*entityId, value, settings.userAgentAPI.c_str());
 		{
 			std::lock_guard curlOperationsLock {curlOperationsMutex};
