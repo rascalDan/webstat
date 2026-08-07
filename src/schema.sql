@@ -1,3 +1,5 @@
+CREATE EXTENSION pgcrypto;
+
 CREATE TYPE http_verb AS ENUM(
 	'GET',
 	'HEAD',
@@ -88,14 +90,21 @@ FOR VALUES IN ('unparsable_line', 'uninsertable_line');
 ALTER TABLE bad_lines
 	ADD CONSTRAINT pk_bad_lines PRIMARY KEY (id);
 
-CREATE UNIQUE INDEX uni_entities_value ON entities(MD5(value), type);
+CREATE OR REPLACE FUNCTION md5digest(value text)
+	RETURNS bytea
+	LANGUAGE sql
+	STABLE STRICT parallel safe RETURN digest (
+		value, 'md5'
+);
+
+CREATE UNIQUE INDEX uni_entities_value ON entities(md5digest(value), type);
 
 CREATE INDEX idx_entities_retryinsert ON bad_lines(id)
 WHERE
 	type = 'uninsertable_line' AND detail ->> 'retriedAt' IS NULL;
 
 ALTER TABLE bad_lines
-	ADD CONSTRAINT bad_lines_have_hostnameid CHECK (detail ? 'hostnameId');
+	ADD CONSTRAINT bad_lines_have_hostnameid CHECK(detail ? 'hostnameId');
 
 CREATE OR REPLACE FUNCTION entity(newValue text, newType entity)
 	RETURNS TABLE(
@@ -118,7 +127,7 @@ BEGIN
 			FROM
 				entities
 			WHERE
-				md5(value) = md5(newValue)
+				md5digest(value) = md5digest(newValue)
 				AND type = newType)
 	ON CONFLICT
 		DO NOTHING
@@ -136,7 +145,7 @@ BEGIN
 		FROM
 			entities e
 		WHERE
-			md5(e.value) = md5(newValue)
+			md5digest(e.value) = md5digest(newValue)
 			AND e.type = newType;
 	ELSE
 		RETURN QUERY
