@@ -21,9 +21,14 @@ namespace {
 	class PerfIngestor : public WebStat::BasicTestIngestor {
 		using BasicTestIngestor::BasicTestIngestor;
 
-		void
-		log(int, const char *, ...) const override
+		[[gnu::format(printf, 3, 4)]] void
+		log(int, const char * msgfmt, ...) const override
 		{
+			va_list args;
+			va_start(args, msgfmt);
+			vfprintf(stderr, msgfmt, args);
+			fputc('\n', stderr);
+			va_end(args);
 		}
 	};
 
