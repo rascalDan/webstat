@@ -91,6 +91,8 @@ namespace WebStat {
 			size_t linesParseFailed;
 			size_t logsInserted;
 			size_t entitiesInserted;
+			size_t batchesStarted;
+			size_t batchesCompleted;
 			constexpr bool operator==(const Ingestor::Stats &) const = default;
 		};
 

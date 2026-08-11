@@ -420,6 +420,7 @@ namespace WebStat {
 	Ingestor::ingestLogLines(DB::Connection * dbconn, const LinesView lines)
 	{
 		DB::TransactionScope batchTx {*dbconn};
+		stats.batchesStarted++;
 		const auto hostnameId = getHostnameId(dbconn);
 		auto insert = dbconn->modify(SQL::ACCESS_LOG_INSERT, SQL::ACCESS_LOG_INSERT_OPTS);
 		insert->bindParam(0, hostnameId);
@@ -455,6 +456,7 @@ namespace WebStat {
 				log(LOG_NOTICE, "Failed to parse line, this is a bug: %u:%s", unparsableLineId, line.c_str());
 			}
 		}
+		stats.batchesCompleted++;
 	}
 
 	std::expected<std::filesystem::path, int>
@@ -707,9 +709,9 @@ namespace WebStat {
 	{
 		log(LOG_INFO,
 				"Statistics: linesQueued %zu, linesRead %zu, linesParsed %zu, linesParseFailed %zu, logsInserted %zu, "
-				"entitiesInserted %zu, entitiesKnown %zu",
+				"entitiesInserted %zu, entitiesKnown %zu, batches(%zu started, %zu completed)",
 				queuedLines.size(), stats.linesRead, stats.linesParsed, stats.linesParseFailed, stats.logsInserted,
-				stats.entitiesInserted, existingEntities->size());
+				stats.entitiesInserted, existingEntities->size(), stats.batchesStarted, stats.batchesCompleted);
 	}
 
 	void
