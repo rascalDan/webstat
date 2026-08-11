@@ -2,6 +2,7 @@
 
 #include <connectionPool.h>
 #include <filesystem>
+#include <ingestor.hpp>
 #include <pq-mock.h>
 #include <sys/utsname.h>
 #include <util.hpp>
@@ -33,7 +34,21 @@ namespace WebStat {
 
 	template<typename Out> using ParseData = std::tuple<std::string_view, Out>;
 
-	utsname getTestUtsName(std::string_view);
+	class BasicTestIngestor : public Ingestor {
+	public:
+		BasicTestIngestor(std::string);
+		BasicTestIngestor(std::string, IngestorSettings);
+		~BasicTestIngestor() override;
+
+		SPECIAL_MEMBERS_DELETE(BasicTestIngestor);
+
+		mutable size_t logsWritten = 0;
+
+	protected:
+		utsname getHostDetail() const override;
+
+		std::string hostname;
+	};
 
 	struct LogFile {
 		LogFile(std::filesystem::path where, size_t entries);

@@ -14,11 +14,31 @@ namespace WebStat {
 		return DB::MockDatabase::openConnectionTo(name);
 	}
 
+	BasicTestIngestor::BasicTestIngestor(std::string hstnm) :
+		BasicTestIngestor {std::move(hstnm),
+				{
+						.userAgentAPI = FIXTURE_URL_BASE + "/userAgent.json",
+						.fallbackDir = std::format("/tmp/webstat-{}", getpid()),
+				}}
+	{
+	}
+
+	BasicTestIngestor::BasicTestIngestor(std::string hstnm, IngestorSettings testSettings) :
+		Ingestor {std::make_shared<MockDBPool>("webstat"), std::move(testSettings)}, hostname {std::move(hstnm)}
+	{
+		std::filesystem::create_directories(settings.fallbackDir);
+	}
+
+	BasicTestIngestor::~BasicTestIngestor()
+	{
+		std::filesystem::remove_all(settings.fallbackDir);
+	}
+
 	utsname
-	getTestUtsName(const std::string_view nodename)
+	BasicTestIngestor::getHostDetail() const
 	{
 		utsname uts {};
-		nodename.copy(uts.nodename, sizeof(uts.nodename));
+		hostname.copy(uts.nodename, sizeof(uts.nodename));
 		return uts;
 	}
 

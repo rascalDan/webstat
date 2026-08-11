@@ -120,21 +120,18 @@ namespace WebStat {
 
 	Ingestor * Ingestor::currentIngestor = nullptr;
 
-	Ingestor::Ingestor(const utsname & host, IngestorSettings givenSettings) :
-		Ingestor {host,
-				std::make_shared<DB::ConnectionPool>(
-						givenSettings.dbMax, givenSettings.dbKeep, givenSettings.dbType, givenSettings.dbConnStr),
+	Ingestor::Ingestor(IngestorSettings givenSettings) :
+		Ingestor {std::make_shared<DB::ConnectionPool>(
+						  givenSettings.dbMax, givenSettings.dbKeep, givenSettings.dbType, givenSettings.dbConnStr),
 				std::move(givenSettings)}
 	{
 	}
 
-	Ingestor::Ingestor(const utsname & host, DB::ConnectionPoolPtr dbpl, IngestorSettings givenSettings) :
+	Ingestor::Ingestor(DB::ConnectionPoolPtr dbpl, IngestorSettings givenSettings) :
 		settings {std::move(givenSettings)}, dbpool {std::move(dbpl)},
 		handleCompleteCurlOps {&Ingestor::jobHandleCompleteCurlOps, &Ingestor::haveCurlOperations},
 		ingestParkedLines {&Ingestor::jobReadParkedLines}, purgeOldLogs {&Ingestor::jobPurgeOldLogs},
 		storeQueueLines {&Ingestor::jobStoreQueuedLines}, retryUninsertableLines {&Ingestor::jobRetryUninsertableLines},
-		hostnameId {insert(dbpool->get(), SQL::HOST_UPSERT, SQL::HOST_UPSERT_OPTS, host.nodename, host.sysname,
-				host.release, host.version, host.machine, host.domainname)},
 		curl {curl_multi_init()}
 	{
 		assert(!currentIngestor);
@@ -411,10 +408,19 @@ namespace WebStat {
 		return entities;
 	}
 
+	EntityId
+	Ingestor::getHostnameId(DB::Connection * dbconn) const
+	{
+		const auto host = getHostDetail();
+		return insert(dbconn, SQL::HOST_UPSERT, SQL::HOST_UPSERT_OPTS, host.nodename, host.sysname, host.release,
+				host.version, host.machine, host.domainname);
+	}
+
 	void
 	Ingestor::ingestLogLines(DB::Connection * dbconn, const LinesView lines)
 	{
 		DB::TransactionScope batchTx {*dbconn};
+		const auto hostnameId = getHostnameId(dbconn);
 		auto insert = dbconn->modify(SQL::ACCESS_LOG_INSERT, SQL::ACCESS_LOG_INSERT_OPTS);
 		insert->bindParam(0, hostnameId);
 		for (const auto & line : lines) {
@@ -432,7 +438,7 @@ namespace WebStat {
 				catch (const DB::Error & originalError) {
 					try {
 						DB::TransactionScope lineTx {*dbconn};
-						const auto uninsertableLineId = storeUninsertableLine(dbconn, line, originalError);
+						const auto uninsertableLineId = storeUninsertableLine(dbconn, hostnameId, line, originalError);
 						log(LOG_NOTICE,
 								"Failed to store parsed line and/or associated entties, but did store raw line, %u:%s",
 								uninsertableLineId, line.c_str());
@@ -445,7 +451,7 @@ namespace WebStat {
 			}
 			else {
 				stats.linesParseFailed++;
-				const auto unparsableLineId = storeUnparsableLine(dbconn, line);
+				const auto unparsableLineId = storeUnparsableLine(dbconn, hostnameId, line);
 				log(LOG_NOTICE, "Failed to parse line, this is a bug: %u:%s", unparsableLineId, line.c_str());
 			}
 		}
@@ -657,14 +663,14 @@ namespace WebStat {
 	}
 
 	EntityId
-	Ingestor::storeUnparsableLine(DB::Connection * dbconn, const std::string_view line) const
+	Ingestor::storeUnparsableLine(DB::Connection * dbconn, const EntityId hostnameId, const std::string_view line)
 	{
 		return insert<EntityId>(dbconn, SQL::UNPARSABLE_INSERT, SQL::UNPARSABLE_INSERT_OPTS, line, hostnameId);
 	}
 
 	EntityId
-	Ingestor::storeUninsertableLine(
-			DB::Connection * dbconn, const std::string_view line, const std::exception & excp) const
+	Ingestor::storeUninsertableLine(DB::Connection * dbconn, const EntityId hostnameId, const std::string_view line,
+			const std::exception & excp)
 	{
 		return insert<EntityId>(
 				dbconn, SQL::UNINSERTABLE_INSERT, SQL::UNINSERTABLE_INSERT_OPTS, line, hostnameId, excp.what());

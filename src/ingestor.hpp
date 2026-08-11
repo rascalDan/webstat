@@ -55,8 +55,8 @@ namespace WebStat {
 			std::optional<std::future<Result>> currentRun;
 		};
 
-		Ingestor(const utsname &, IngestorSettings);
-		Ingestor(const utsname &, DB::ConnectionPoolPtr, IngestorSettings);
+		Ingestor(IngestorSettings);
+		Ingestor(DB::ConnectionPoolPtr, IngestorSettings);
 
 		virtual ~Ingestor();
 		SPECIAL_MEMBERS_DELETE(Ingestor);
@@ -117,8 +117,8 @@ namespace WebStat {
 		void fillKnownEntities(std::span<Entity *>) const;
 		void storeNewEntities(DB::Connection *, std::span<Entity *>) const;
 		void storeNewEntity(DB::Connection *, Entity &) const;
-		EntityId storeUnparsableLine(DB::Connection *, std::string_view) const;
-		EntityId storeUninsertableLine(DB::Connection *, std::string_view, const std::exception &) const;
+		static EntityId storeUnparsableLine(DB::Connection *, EntityId, std::string_view);
+		static EntityId storeUninsertableLine(DB::Connection *, EntityId, std::string_view, const std::exception &);
 		void onNewUserAgent(const Entity &) const;
 		auto withCurlLock(auto &&...);
 		bool haveCurlOperations();
@@ -135,9 +135,10 @@ namespace WebStat {
 		static void sigusr1Handler(int);
 		static void sigusr2Handler(int);
 		[[gnu::format(printf, 3, 4)]] virtual void log(int level, const char * msgfmt, ...) const = 0;
+		virtual utsname getHostDetail() const = 0;
+		EntityId getHostnameId(DB::Connection *) const;
 
 		using CurlOperations = std::map<CURL *, std::unique_ptr<CurlOperation>>;
-		EntityId hostnameId;
 		CurlMultiPtr curl;
 		mutable CurlOperations curlOperations;
 		mutable std::mutex curlOperationsMutex;

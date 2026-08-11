@@ -9,17 +9,6 @@
 #include <syslog.h>
 
 namespace {
-	[[nodiscard]]
-	utsname
-	getHostDetail()
-	{
-		utsname uts {};
-		if (uname(&uts)) {
-			throw std::runtime_error(std::format("Failed to get hostname (uts: {}:{})", errno, strerror(errno)));
-		}
-		return uts;
-	}
-
 	class MainIngestor : public WebStat::Ingestor {
 		using Ingestor::Ingestor;
 
@@ -30,6 +19,17 @@ namespace {
 			va_start(args, msgfmt);
 			vsyslog(level, msgfmt, args);
 			va_end(args);
+		}
+
+		[[nodiscard]]
+		utsname
+		getHostDetail() const override
+		{
+			utsname uts {};
+			if (uname(&uts)) {
+				throw std::runtime_error(std::format("Failed to get hostname (uts: {}:{})", errno, strerror(errno)));
+			}
+			return uts;
 		}
 	};
 
@@ -120,7 +120,7 @@ main(int argc, char ** argv)
 	po::notify(optVars);
 
 	try {
-		MainIngestor ingestor {getHostDetail(), std::move(settings)};
+		MainIngestor ingestor {std::move(settings)};
 
 		if (const auto jobNameItr = optVars.find("job"); jobNameItr != optVars.end()) {
 			return runJobByName(ingestor, jobNameItr->second.as<std::string>());

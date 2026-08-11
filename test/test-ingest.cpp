@@ -314,24 +314,9 @@ BOOST_AUTO_TEST_CASE(ExtractFieldsEdgeCasesUnparsable3354288) // Long duration
 	BOOST_CHECK_EQUAL(7361204168, duration);
 }
 
-class TestIngestor : public WebStat::Ingestor {
+class TestIngestor : public WebStat::BasicTestIngestor {
 public:
-	TestIngestor() :
-		WebStat::Ingestor {WebStat::getTestUtsName("test-hostname"), std::make_shared<MockDBPool>("webstat"),
-				{
-						.userAgentAPI = FIXTURE_URL_BASE + "/userAgent.json",
-						.fallbackDir = std::format("/tmp/webstat-{}", getpid()),
-				}}
-	{
-		std::filesystem::create_directories(settings.fallbackDir);
-	}
-
-	~TestIngestor() override
-	{
-		std::filesystem::remove_all(settings.fallbackDir);
-	}
-
-	SPECIAL_MEMBERS_DELETE(TestIngestor);
+	TestIngestor() : WebStat::BasicTestIngestor {"test-hostname"} { }
 
 	[[gnu::format(printf, 3, 4)]] void
 	log(int, const char * msgfmt, ...) const override
@@ -345,8 +330,6 @@ public:
 		BOOST_TEST_MESSAGE(msg.get());
 		++logsWritten;
 	}
-
-	mutable size_t logsWritten = 0;
 };
 
 static constexpr std::array<std::string_view, 9> ENTITY_TYPE_VALUES {{
@@ -528,7 +511,7 @@ BOOST_AUTO_TEST_CASE(FetchMockUserAgentDetail)
 	}
 }
 
-constexpr EntityId rollingEntityCounterBase = 18;
+constexpr EntityId rollingEntityCounterBase = 14;
 
 BOOST_AUTO_TEST_CASE(RecordUnparsable)
 {
@@ -612,7 +595,8 @@ BOOST_AUTO_TEST_CASE(RetryUninsertableNone, *boost::unit_test::timeout(1))
 BOOST_AUTO_TEST_CASE(RetryUninsertableSuccess, *boost::unit_test::timeout(1))
 {
 	auto dbconn = dbpool->get();
-	const auto uninsertableLineId = storeUninsertableLine(dbconn.get(), LOGLINE1, std::runtime_error {"some error"});
+	const auto uninsertableLineId = storeUninsertableLine(
+			dbconn.get(), getHostnameId(dbconn.get()), LOGLINE1, std::runtime_error {"some error"});
 	BOOST_REQUIRE(getEntityById(dbconn.get(), uninsertableLineId));
 
 	BOOST_CHECK_EQUAL(1, jobRetryUninsertableLines()());
@@ -622,7 +606,8 @@ BOOST_AUTO_TEST_CASE(RetryUninsertableSuccess, *boost::unit_test::timeout(1))
 BOOST_AUTO_TEST_CASE(RetryUninsertableNowUnparsable, *boost::unit_test::timeout(1))
 {
 	auto dbconn = dbpool->get();
-	const auto uninsertableId = storeUninsertableLine(dbconn.get(), "blah", std::runtime_error {"some error"});
+	const auto uninsertableId = storeUninsertableLine(
+			dbconn.get(), getHostnameId(dbconn.get()), "blah", std::runtime_error {"some error"});
 	BOOST_REQUIRE(uninsertableId);
 
 	BOOST_CHECK_EQUAL(0, jobRetryUninsertableLines()());
@@ -636,8 +621,8 @@ BOOST_AUTO_TEST_CASE(RetryUninsertableStillUninsertable, *boost::unit_test::time
 	auto dbconn = dbpool->get();
 	constexpr std::string_view LOGLINE_UNINSERTABLE
 			= R"LOG(git.randomdan.homeip.net 98.82.40.168 1755561576768318 CAUSEINSERTFAIL "/repo/gentoobrowse-api/commit/gentoobrowse-api/unittests/fixtures/756569aa764177340726dd3d40b41d89b11b20c7/app-crypt/pdfcrack/Manifest" "?h=gentoobrowse-api-0.9.1&id=a2ed3fd30333721accd4b697bfcb6cc4165c7714" HTTP/1.1 200 1884 107791 "-" "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Amazonbot/0.1; +https://developer.amazon.com/support/amazonbot) Chrome/119.0.6045.214 Safari/537.36" "text/plain")LOG";
-	const auto uninsertableId
-			= storeUninsertableLine(dbconn.get(), LOGLINE_UNINSERTABLE, std::runtime_error {"some error"});
+	const auto uninsertableId = storeUninsertableLine(
+			dbconn.get(), getHostnameId(dbconn.get()), LOGLINE_UNINSERTABLE, std::runtime_error {"some error"});
 	BOOST_REQUIRE(uninsertableId);
 
 	BOOST_CHECK_EQUAL(0, jobRetryUninsertableLines()());
@@ -671,24 +656,28 @@ BOOST_AUTO_TEST_CASE(LogResetSignal)
 
 using CreateEntitiesData = std::tuple<std::string_view, WebStat::EntityType, int>;
 
+constexpr int entityOffsetHost1 = 12, entityOffsetHost2 = entityOffsetHost1 + 1,
+			  entityOffsetHost3 = entityOffsetHost2 + 1, entityOffsetVHost1 = entityOffsetHost3 + 1,
+			  entityOffsetVHost2 = entityOffsetVHost1 + 1, entityOffsetVHost3 = entityOffsetVHost2 + 1;
+
 BOOST_DATA_TEST_CASE(CreateEntities,
 		boost::unit_test::data::make<CreateEntitiesData>({
-				{"host1", WebStat::EntityType::Host, rollingEntityCounterBase + 16},
-				{"host2", WebStat::EntityType::Host, rollingEntityCounterBase + 18},
-				{"host3", WebStat::EntityType::Host, rollingEntityCounterBase + 20},
-				{"host1", WebStat::EntityType::Host, rollingEntityCounterBase + 16},
-				{"host2", WebStat::EntityType::Host, rollingEntityCounterBase + 18},
-				{"host3", WebStat::EntityType::Host, rollingEntityCounterBase + 20},
-				{"host1", WebStat::EntityType::VirtualHost, rollingEntityCounterBase + 25},
-				{"host2", WebStat::EntityType::VirtualHost, rollingEntityCounterBase + 27},
-				{"host3", WebStat::EntityType::VirtualHost, rollingEntityCounterBase + 29},
-				{"host1", WebStat::EntityType::VirtualHost, rollingEntityCounterBase + 25},
-				{"host2", WebStat::EntityType::VirtualHost, rollingEntityCounterBase + 27},
-				{"host3", WebStat::EntityType::VirtualHost, rollingEntityCounterBase + 29},
-				{"host2", WebStat::EntityType::Host, rollingEntityCounterBase + 18},
-				{"host1", WebStat::EntityType::VirtualHost, rollingEntityCounterBase + 25},
-				{"host3", WebStat::EntityType::Host, rollingEntityCounterBase + 20},
-				{"host1", WebStat::EntityType::Host, rollingEntityCounterBase + 16},
+				{"host1", WebStat::EntityType::Host, rollingEntityCounterBase + entityOffsetHost1},
+				{"host2", WebStat::EntityType::Host, rollingEntityCounterBase + entityOffsetHost2},
+				{"host3", WebStat::EntityType::Host, rollingEntityCounterBase + entityOffsetHost3},
+				{"host1", WebStat::EntityType::Host, rollingEntityCounterBase + entityOffsetHost1},
+				{"host2", WebStat::EntityType::Host, rollingEntityCounterBase + entityOffsetHost2},
+				{"host3", WebStat::EntityType::Host, rollingEntityCounterBase + entityOffsetHost3},
+				{"host1", WebStat::EntityType::VirtualHost, rollingEntityCounterBase + entityOffsetVHost1},
+				{"host2", WebStat::EntityType::VirtualHost, rollingEntityCounterBase + entityOffsetVHost2},
+				{"host3", WebStat::EntityType::VirtualHost, rollingEntityCounterBase + entityOffsetVHost3},
+				{"host1", WebStat::EntityType::VirtualHost, rollingEntityCounterBase + entityOffsetVHost1},
+				{"host2", WebStat::EntityType::VirtualHost, rollingEntityCounterBase + entityOffsetVHost2},
+				{"host3", WebStat::EntityType::VirtualHost, rollingEntityCounterBase + entityOffsetVHost3},
+				{"host2", WebStat::EntityType::Host, rollingEntityCounterBase + entityOffsetHost2},
+				{"host1", WebStat::EntityType::VirtualHost, rollingEntityCounterBase + entityOffsetVHost1},
+				{"host3", WebStat::EntityType::Host, rollingEntityCounterBase + entityOffsetHost3},
+				{"host1", WebStat::EntityType::Host, rollingEntityCounterBase + entityOffsetHost1},
 		}),
 		value, type, expectedId)
 {

@@ -18,8 +18,8 @@ namespace {
 		static const WebStat::MockDB mockdb;
 	}
 
-	class PerfIngestor : public WebStat::Ingestor {
-		using Ingestor::Ingestor;
+	class PerfIngestor : public WebStat::BasicTestIngestor {
+		using BasicTestIngestor::BasicTestIngestor;
 
 		void
 		log(int, const char *, ...) const override
@@ -30,10 +30,10 @@ namespace {
 	void
 	doIngestFile(benchmark::State & state)
 	{
-		PerfIngestor ingestor {WebStat::getTestUtsName("perf-hostname"),
-				std::make_shared<WebStat::MockDBPool>("webstat"),
+		PerfIngestor ingestor {"perf-hostname",
 				{
 						.userAgentAPI = {},
+						.fallbackDir = std::format("/tmp/webstat-{}", getpid()),
 						.maxBatchSize = static_cast<size_t>(state.range(0)),
 				}};
 		for (auto loop : state) {
