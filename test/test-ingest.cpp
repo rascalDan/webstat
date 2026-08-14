@@ -543,25 +543,41 @@ BOOST_AUTO_TEST_CASE(RecordUninsertable)
 		constexpr std::string_view LOGLINE_UNINSERTABLE
 				= R"LOG(git.randomdan.homeip.net 98.82.40.168 1755561576768319 CAUSEINSERTFAIL "/repo/gentoobrowse-api/commit/gentoobrowse-api/unittests/fixtures/756569aa764177340726dd3d40b41d89b11b20c7/app-crypt/pdfcrack/Manifest" "?h=gentoobrowse-api-0.9.1&id=a2ed3fd30333721accd4b697bfcb6cc4165c7714" HTTP/1.1 200 1884 107791 "-" "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Amazonbot/0.1; +https://developer.amazon.com/support/amazonbot) Chrome/119.0.6045.214 Safari/537.36" "text/plain")LOG";
 		queuedLines.emplace_back(LOGLINE_UNINSERTABLE);
-		auto job = beginIngestQueuedLogLines();
-		BOOST_CHECK_EQUAL(&job.first, &*storeQueueLines.currentRun);
-		BOOST_CHECK(job.second);
-		finishAllJobs();
+		{
+			// This run fails
+			auto job = beginIngestQueuedLogLines();
+			BOOST_CHECK_EQUAL(&job.first, &*storeQueueLines.currentRun);
+			BOOST_CHECK(job.second);
+			finishAllJobs();
+			BOOST_REQUIRE_EQUAL(stats.batchesStarted, 1);
+			BOOST_REQUIRE_EQUAL(stats.batchesCompleted, 0);
+			BOOST_REQUIRE(previousIngestErrored);
+		}
+		{
+			// Try it again...
+			auto job = beginIngestQueuedLogLines();
+			BOOST_CHECK_EQUAL(&job.first, &*storeQueueLines.currentRun);
+			BOOST_CHECK(job.second);
+			finishAllJobs();
+			BOOST_REQUIRE_EQUAL(stats.batchesStarted, 2);
+			BOOST_REQUIRE_EQUAL(stats.batchesCompleted, 1);
+			BOOST_REQUIRE(!previousIngestErrored);
+		}
 		auto select = dbconn->select(
 				R"(SELECT id::bigint, value, detail ? 'timestamp' has_ts, (detail->>'hostnameId')::int hostnameId, (detail->>'error')::text
 			FROM entities
 			WHERE type = 'uninsertable_line')");
 		constexpr std::array<std::tuple<EntityId, std::string_view, bool, uint32_t, std::string_view>, 1> EXPECTED {{
-				{rollingEntityCounterBase + 3, LOGLINE_UNINSERTABLE, true, 1,
+				{rollingEntityCounterBase + 5, LOGLINE_UNINSERTABLE, true, 1,
 						"ERROR:  invalid input value for enum http_verb: \"CAUSEINSERTFAIL\"\n"
 						"CONTEXT:  unnamed portal parameter $5 = '...'\n"},
 		}};
 		auto rows = select->as<EntityId, std::string_view, bool, uint32_t, std::string_view>();
 		BOOST_CHECK_EQUAL_COLLECTIONS(rows.begin(), rows.end(), EXPECTED.begin(), EXPECTED.end());
-		BOOST_CHECK_EQUAL(stats.linesParsed, 1);
+		BOOST_CHECK_EQUAL(stats.linesParsed, 2);
 		BOOST_CHECK_EQUAL(stats.logsInserted, 0);
 		BOOST_CHECK_EQUAL(stats.linesParseFailed, 0);
-		BOOST_CHECK_EQUAL(stats.entitiesInserted, 5); // 5 were inserted, but the savepoint was rolled back
+		BOOST_CHECK_EQUAL(stats.entitiesInserted, 10); // 5 were inserted, twice, but the savepoint was rolled back
 		BOOST_CHECK(existingEntities->empty()); // ... so existing entities should be empty
 	}
 
@@ -575,9 +591,9 @@ BOOST_AUTO_TEST_CASE(RecordUninsertable)
 			BOOST_CHECK(job.second);
 			finishAllJobs();
 		}
-		BOOST_CHECK_EQUAL(stats.linesParsed, 2);
+		BOOST_CHECK_EQUAL(stats.linesParsed, 3);
 		BOOST_CHECK_EQUAL(stats.logsInserted, 1);
-		BOOST_CHECK_EQUAL(stats.entitiesInserted, 10);
+		BOOST_CHECK_EQUAL(stats.entitiesInserted, 15);
 		BOOST_CHECK_EQUAL(existingEntities->size(), 5);
 	}
 }
@@ -656,7 +672,7 @@ BOOST_AUTO_TEST_CASE(LogResetSignal)
 
 using CreateEntitiesData = std::tuple<std::string_view, WebStat::EntityType, int>;
 
-constexpr int entityOffsetHost1 = 12, entityOffsetHost2 = entityOffsetHost1 + 1,
+constexpr int entityOffsetHost1 = 14, entityOffsetHost2 = entityOffsetHost1 + 1,
 			  entityOffsetHost3 = entityOffsetHost2 + 1, entityOffsetVHost1 = entityOffsetHost3 + 1,
 			  entityOffsetVHost2 = entityOffsetVHost1 + 1, entityOffsetVHost3 = entityOffsetVHost2 + 1;
 

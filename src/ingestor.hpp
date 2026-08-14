@@ -72,6 +72,7 @@ namespace WebStat {
 		void ingestLog(std::FILE *);
 		std::pair<std::future<Job::Result> &, bool> beginIngestQueuedLogLines();
 		void ingestLogLines(DB::Connection *, LinesView lines);
+		bool previousIngestErrored = false;
 		std::expected<std::filesystem::path, int> parkLogLines(LineBatch &);
 		void runJobsAsNeeded();
 

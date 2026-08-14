@@ -431,12 +431,19 @@ namespace WebStat {
 				auto valuesEntities = entities(values);
 				fillKnownEntities(valuesEntities);
 				try {
-					DB::TransactionScope lineTx {*dbconn};
+					std::optional<DB::TransactionScope> lineTx;
+					if (previousIngestErrored) {
+						lineTx.emplace(*dbconn);
+					}
 					storeNewEntities(dbconn, valuesEntities);
 					storeLogLine(insert.get(), values);
 					existingEntities()->insert_range(valuesEntities | ENTITY_IDS);
 				}
 				catch (const DB::Error & originalError) {
+					if (!previousIngestErrored) {
+						previousIngestErrored = true;
+						throw;
+					}
 					try {
 						DB::TransactionScope lineTx {*dbconn};
 						const auto uninsertableLineId = storeUninsertableLine(dbconn, hostnameId, line, originalError);
@@ -457,6 +464,7 @@ namespace WebStat {
 			}
 		}
 		stats.batchesCompleted++;
+		previousIngestErrored = false;
 	}
 
 	std::expected<std::filesystem::path, int>
