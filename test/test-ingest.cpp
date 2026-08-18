@@ -385,6 +385,7 @@ BOOST_AUTO_TEST_CASE(StoreLog, *boost::unit_test::depends_on("I/StoreLogLine"))
 	BOOST_CHECK_EQUAL(stats.linesRead, 10);
 	BOOST_CHECK_EQUAL(stats.linesParsed, 10);
 	BOOST_CHECK_EQUAL(stats.linesParseFailed, 0);
+	BOOST_CHECK_EQUAL(stats.linesParked, 0);
 	BOOST_CHECK_GE(stats.entitiesInserted, 1);
 	BOOST_CHECK_EQUAL(stats.entitiesInserted, existingEntities->size());
 }
@@ -411,6 +412,7 @@ BOOST_AUTO_TEST_CASE(ParkLogLine)
 	BOOST_TEST_INFO(*path);
 	BOOST_REQUIRE(std::filesystem::exists(*path));
 	BOOST_CHECK_EQUAL(std::filesystem::file_size(*path), LOGLINE1.length() + LOGLINE2.length() + 4);
+	BOOST_CHECK_EQUAL(stats.linesParked, 2);
 }
 
 BOOST_AUTO_TEST_CASE(ParkLogLineOnError, *boost::unit_test::depends_on("I/ParkLogLine"))

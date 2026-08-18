@@ -91,6 +91,7 @@ namespace WebStat {
 			size_t linesParsed;
 			size_t linesParseFailed;
 			size_t logsInserted;
+			size_t linesParked;
 			size_t entitiesInserted;
 			size_t batchesStarted;
 			size_t batchesCompleted;

@@ -481,10 +481,11 @@ namespace WebStat {
 				std::println(parked, "{}", line);
 			}
 			if (parked.flush().good()) {
-				lines.clear();
 				auto finalPath = auto {path}.replace_extension(".log");
 				parked.close();
 				if (!renameNoExcept(path, finalPath)) {
+					stats.linesParked += lines.size();
+					lines.clear();
 					return finalPath;
 				}
 			}
