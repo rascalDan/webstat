@@ -7,6 +7,7 @@
 #include <selectcommandUtil.impl.h>
 
 #include <ingestor.hpp>
+#include <ranges>
 #include <sql.hpp>
 #include <uaLookup.hpp>
 
@@ -712,6 +713,28 @@ BOOST_DATA_TEST_CASE(CreateEntities,
 		BOOST_CHECK_EQUAL(entityId, expectedId);
 		BOOST_CHECK_EQUAL(detailIsNull, true);
 	}
+}
+
+BOOST_AUTO_TEST_CASE(TerminateMidIngest, *boost::unit_test::timeout(5))
+{
+	settings.maxBatchSize = 64;
+	queuedLines.append_range(std::views::repeat(std::string {LOGLINE1}, 1000));
+	beginIngestQueuedLogLines();
+	std::this_thread::sleep_for(std::chrono::milliseconds {100});
+	raise(SIGTERM);
+	finishAllJobs();
+	BOOST_CHECK_EQUAL(stats.linesRead, 0); // We appended directly
+	// Some progress was made
+	BOOST_CHECK_GT(stats.linesParsed, 0);
+	BOOST_CHECK_GT(stats.logsInserted, 0);
+	BOOST_TEST_INFO(processingLines.size());
+	BOOST_CHECK_EQUAL(processingLines.size(), 1000 - (settings.maxBatchSize * stats.batchesCompleted));
+	// Progress was interrupted
+	BOOST_CHECK_GE(stats.logsInserted, (settings.maxBatchSize * stats.batchesCompleted));
+	BOOST_CHECK_LT(stats.logsInserted, settings.maxBatchSize * (stats.batchesCompleted + 1));
+	BOOST_CHECK_GT(processingLines.size(), 0);
+
+	BOOST_CHECK(queuedLines.empty());
 }
 
 BOOST_AUTO_TEST_SUITE_END();

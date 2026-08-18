@@ -423,6 +423,9 @@ namespace WebStat {
 		auto insert = dbconn->modify(SQL::ACCESS_LOG_INSERT, SQL::ACCESS_LOG_INSERT_OPTS);
 		insert->bindParam(0, hostnameId);
 		for (const auto & line : lines) {
+			if (terminated) {
+				throw std::runtime_error {"Terminate requested"};
+			}
 			if (auto result = scanLogLine(line)) {
 				stats.linesParsed++;
 				auto values = hashScanValues(result->values());
