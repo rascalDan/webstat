@@ -277,8 +277,6 @@ namespace WebStat {
 		}
 		finishAllJobs();
 		storeQueueLines.currentRun.reset();
-		beginIngestQueuedLogLines();
-		storeQueueLines.currentRun.reset();
 		std::ignore = parkLogLines(queuedLines);
 		std::ignore = parkLogLines(processingLines);
 		withCurlLock([this]() {

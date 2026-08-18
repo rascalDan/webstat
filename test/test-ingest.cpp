@@ -383,10 +383,11 @@ BOOST_AUTO_TEST_CASE(StoreLog, *boost::unit_test::depends_on("I/StoreLogLine"))
 	BOOST_REQUIRE(input);
 	BOOST_CHECK_NO_THROW(ingestLog(input.get()));
 	BOOST_CHECK_EQUAL(stats.linesRead, 10);
-	BOOST_CHECK_EQUAL(stats.linesParsed, 10);
+	BOOST_CHECK_LE(stats.linesParsed, 10);
 	BOOST_CHECK_EQUAL(stats.linesParseFailed, 0);
-	BOOST_CHECK_EQUAL(stats.linesParked, 0);
+	BOOST_CHECK_GT(stats.linesParked, 0);
 	BOOST_CHECK_GE(stats.entitiesInserted, 1);
+	BOOST_CHECK_EQUAL(stats.linesParked + stats.logsInserted, 10);
 	BOOST_CHECK_EQUAL(stats.entitiesInserted, existingEntities->size());
 }
 
