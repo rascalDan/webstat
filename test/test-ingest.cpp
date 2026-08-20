@@ -669,7 +669,7 @@ BOOST_AUTO_TEST_CASE(LogStatsSignal)
 
 BOOST_AUTO_TEST_CASE(LogResetSignal)
 {
-	stats = {1, 2, 3, 4, 5};
+	stats = {1, 2, 3, 4, 5, 6, 7, 8};
 	raise(SIGUSR2);
 	BOOST_CHECK_EQUAL(stats, Stats {});
 }
