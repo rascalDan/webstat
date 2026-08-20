@@ -100,6 +100,7 @@ namespace WebStat {
 
 	protected:
 		void finishAllJobs();
+		void runJobAsNeeded(Job &, std::chrono::minutes freq);
 
 		static Ingestor * currentIngestor;
 		DB::ConnectionPoolPtr dbpool;

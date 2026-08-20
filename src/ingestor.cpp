@@ -125,6 +125,7 @@ namespace WebStat {
 						  givenSettings.dbMax, givenSettings.dbKeep, givenSettings.dbType, givenSettings.dbConnStr),
 				std::move(givenSettings)}
 	{
+		runJobAsNeeded(ingestParkedLines, {});
 	}
 
 	Ingestor::Ingestor(DB::ConnectionPoolPtr dbpl, IngestorSettings givenSettings) :
@@ -515,20 +516,24 @@ namespace WebStat {
 	}
 
 	void
+	Ingestor::runJobAsNeeded(Job & job, const std::chrono::minutes freq)
+	{
+		const auto now = Job::LastRunTime::clock::now();
+		if (job.currentRun) {
+			if (job.currentRun->wait_for(std::chrono::seconds {}) == std::future_status::ready) {
+				finalizeJob(job, freq, now);
+			}
+		}
+		else if (expired(job.lastRun, freq, now)) {
+			if (!job.cond || std::invoke(job.cond, this)) {
+				job.currentRun.emplace(std::async(std::launch::async, job.impl, this));
+			}
+		}
+	}
+
+	void
 	Ingestor::runJobsAsNeeded()
 	{
-		auto runJobAsNeeded = [this, now = Job::LastRunTime::clock::now()](Job & job, auto freq) {
-			if (job.currentRun) {
-				if (job.currentRun->wait_for(std::chrono::seconds {}) == std::future_status::ready) {
-					finalizeJob(job, freq, now);
-				}
-			}
-			else if (expired(job.lastRun, freq, now)) {
-				if (!job.cond || std::invoke(job.cond, this)) {
-					job.currentRun.emplace(std::async(std::launch::async, job.impl, this));
-				}
-			}
-		};
 		runJobAsNeeded(handleCompleteCurlOps, std::chrono::minutes {1});
 		runJobAsNeeded(ingestParkedLines, settings.freqIngestParkedLines);
 		runJobAsNeeded(purgeOldLogs, settings.freqPurgeOldLogs);
