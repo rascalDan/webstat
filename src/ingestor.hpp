@@ -122,6 +122,9 @@ namespace WebStat {
 		void fillKnownEntities(std::span<Entity *>) const;
 		void storeNewEntities(DB::Connection *, std::span<Entity *>) const;
 		void storeNewEntity(DB::Connection *, Entity &) const;
+		using EntityInsertResult = std::tuple<EntityId, bool>;
+		EntityInsertResult insertGenericEntity(DB::Connection *, Entity &, std::string_view) const;
+		EntityInsertResult insertReferrer(DB::Connection *, Entity &, std::string_view) const;
 		static EntityId storeUnparsableLine(DB::Connection *, EntityId, std::string_view);
 		static EntityId storeUninsertableLine(DB::Connection *, EntityId, std::string_view, const std::exception &);
 		void onNewUserAgent(const Entity &) const;

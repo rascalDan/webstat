@@ -652,27 +652,40 @@ namespace WebStat {
 		}
 	}
 
+	std::tuple<EntityId, bool>
+	Ingestor::insertGenericEntity(DB::Connection * dbconn, Entity & entity, const std::string_view typeName) const
+	{
+		return insert<EntityId, bool>(dbconn, SQL::ENTITY_INSERT, SQL::ENTITY_INSERT_OPTS, entity.value, typeName);
+	}
+
+	std::tuple<EntityId, bool>
+	Ingestor::insertReferrer(DB::Connection * dbconn, Entity & entity, const std::string_view typeName) const
+	{
+		return insert<EntityId, bool>(dbconn, SQL::ENTITY_INSERT, SQL::ENTITY_INSERT_OPTS, entity.value, typeName);
+	}
+
 	void
 	Ingestor::storeNewEntity(DB::Connection * dbconn, Entity & entity) const
 	{
-		static constexpr std::array<std::pair<std::string_view, void (Ingestor::*)(const Entity &) const>, 9>
+		using InsertHandler = EntityInsertResult (Ingestor::*)(DB::Connection *, Entity &, std::string_view) const;
+		using PostInsertHandler = void (Ingestor::*)(const Entity &) const;
+		static constexpr std::array<std::tuple<std::string_view, InsertHandler, PostInsertHandler>, 9>
 				ENTITY_TYPE_VALUES {{
-						{"host", nullptr},
-						{"virtual_host", nullptr},
-						{"path", nullptr},
-						{"query_string", nullptr},
-						{"referrer", nullptr},
-						{"user_agent", &Ingestor::onNewUserAgent},
-						{"unparsable_line", nullptr},
-						{"uninsertable_line", nullptr},
-						{"content_type", nullptr},
+						{"host", &Ingestor::insertGenericEntity, nullptr},
+						{"virtual_host", &Ingestor::insertGenericEntity, nullptr},
+						{"path", &Ingestor::insertGenericEntity, nullptr},
+						{"query_string", &Ingestor::insertGenericEntity, nullptr},
+						{"referrer", &Ingestor::insertReferrer, nullptr},
+						{"user_agent", &Ingestor::insertGenericEntity, &Ingestor::onNewUserAgent},
+						{"unparsable_line", &Ingestor::insertGenericEntity, nullptr},
+						{"uninsertable_line", &Ingestor::insertGenericEntity, nullptr},
+						{"content_type", &Ingestor::insertGenericEntity, nullptr},
 				}};
 
 		assert(!entity.id);
-		const auto & [typeName, onInsert] = ENTITY_TYPE_VALUES[std::to_underlying(entity.key.type)];
+		const auto & [typeName, insertHandler, onInsert] = ENTITY_TYPE_VALUES[std::to_underlying(entity.key.type)];
 		bool entityNullDetail = true;
-		std::tie(entity.id, entityNullDetail)
-				= insert<EntityId, bool>(dbconn, SQL::ENTITY_INSERT, SQL::ENTITY_INSERT_OPTS, entity.value, typeName);
+		std::tie(entity.id, entityNullDetail) = std::invoke(insertHandler, this, dbconn, entity, typeName);
 		if (onInsert && entityNullDetail) {
 			std::invoke(onInsert, this, entity);
 		}
