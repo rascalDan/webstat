@@ -66,6 +66,11 @@ namespace WebStat {
 						QueryString, std::string_view, uint16_t, uint64_t, uint64_t, CLFString, CLFString, CLFString>(
 						std::declval<std::string_view>(), ""));
 		using ScanValues = std::remove_cvref_t<decltype(std::declval<WebStat::Ingestor::ScanResult>()->values())>;
+		using ReferrerUri = std::tuple<std::string_view, // scheme
+				Entity, // host
+				Entity, // path
+				std::optional<Entity> // querystring
+				>;
 
 		[[nodiscard]] static ScanResult scanLogLine(std::string_view);
 
@@ -97,6 +102,8 @@ namespace WebStat {
 			size_t batchesCompleted;
 			constexpr bool operator==(const Ingestor::Stats &) const = default;
 		};
+
+		static std::optional<ReferrerUri> decomposeReferrer(std::string_view);
 
 	protected:
 		void finishAllJobs();

@@ -754,3 +754,38 @@ BOOST_AUTO_TEST_CASE(FetchRealUserAgentDetail, *boost::unit_test::disabled())
 		BOOST_CHECK(uaDetailReq->result.contains(R"("os_type":)"));
 	}
 }
+
+using DecomposeUriData = std::tuple<std::string_view, std::string_view, std::string_view, std::string_view,
+		std::optional<std::string_view>>;
+
+BOOST_DATA_TEST_CASE(DecomposeReferrerUriBad,
+		boost::unit_test::data::make<std::string_view>({
+				"",
+				"not a uri",
+				"www.google.com",
+				"www.google.com/",
+				"www.google.com/path",
+		}),
+		uri)
+{
+	BOOST_CHECK(!Ingestor::decomposeReferrer(uri));
+}
+
+BOOST_DATA_TEST_CASE(DecomposeReferrerUri,
+		boost::unit_test::data::make<DecomposeUriData>({
+				{"https://www.example.com", "https", "www.example.com", "", std::nullopt},
+				{"https://john.doe@www.example.com:1234/forum/questions/?tag=networking&order=newest#top", "https",
+						"www.example.com", "/forum/questions/", "tag=networking&order=newest"},
+		}),
+		uri, scheme, host, path, querystring)
+{
+	using WebStat::operator/;
+
+	const auto decomposedUri = Ingestor::decomposeReferrer(uri);
+	BOOST_REQUIRE(decomposedUri);
+	const auto [duScheme, duHost, duPath, duQueryString] = *decomposedUri;
+	BOOST_CHECK_EQUAL(duScheme, scheme);
+	BOOST_CHECK_EQUAL(duHost.value, host);
+	BOOST_CHECK_EQUAL(duPath.value, path);
+	BOOST_CHECK_EQUAL(duQueryString / &Entity::value, querystring);
+}

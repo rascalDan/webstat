@@ -4,6 +4,7 @@
 #include "util.hpp"
 #include <connection.h>
 #include <csignal>
+#include <ctre.hpp>
 #include <dbTypes.h>
 #include <fstream>
 #include <modifycommand.h>
@@ -656,6 +657,23 @@ namespace WebStat {
 	Ingestor::insertGenericEntity(DB::Connection * dbconn, Entity & entity, const std::string_view typeName) const
 	{
 		return insert<EntityId, bool>(dbconn, SQL::ENTITY_INSERT, SQL::ENTITY_INSERT_OPTS, entity.value, typeName);
+	}
+
+	std::optional<Ingestor::ReferrerUri>
+	Ingestor::decomposeReferrer(const std::string_view uri)
+	{
+		// scheme ":" ["//" [userinfo "@"] host [":" port] ] path ["?" query] ["#" fragment]
+		if (const auto components = ctre::match<
+					R"REG(([a-z][a-z0-9+.\-]+):(?:\/\/(?:(?:[^@]+)@)?([^:\/]*)(?::(?:[0-9]+))?)([^?#]*)(?:\?([^#]+))?(?:#(.*))?)REG">(
+					uri)) {
+			return ReferrerUri {
+					components.get<1>(),
+					ToEntity<EntityType::VirtualHost> {}(components.get<2>()),
+					ToEntity<EntityType::Path> {}(components.get<3>()),
+					ToEntity<EntityType::QueryString> {}(components.get<4>().to_optional_view()),
+			};
+		}
+		return std::nullopt;
 	}
 
 	std::tuple<EntityId, bool>
