@@ -1,3 +1,6 @@
 [submodule "thirdparty/scnlib"]
 	path = thirdparty/scnlib
 	url = https://github.com/eliaskosunen/scnlib
+[submodule "thirdparty/ctre"]
+	path = thirdparty/ctre
+	url = https://github.com/hanickadot/compile-time-regular-expressions
