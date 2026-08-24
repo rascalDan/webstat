@@ -348,12 +348,14 @@ static constexpr std::array<std::string_view, 9> ENTITY_TYPE_VALUES {{
 BOOST_FIXTURE_TEST_SUITE(I, TestIngestor);
 BOOST_TEST_DECORATOR(*boost::unit_test::depends_on("ExtractFields"))
 
+using StoreLogLineData = std::tuple<std::string_view, size_t>;
+
 BOOST_DATA_TEST_CASE(StoreLogLine,
-		boost::unit_test::data::make({
-				LOGLINE1,
-				LOGLINE2,
+		boost::unit_test::data::make<StoreLogLineData>({
+				{LOGLINE1, 5},
+				{LOGLINE2, 7},
 		}),
-		lineIn)
+		lineIn, entities)
 {
 	const std::string line {lineIn};
 	ingestLogLines(DB::MockDatabase::openConnectionTo("webstat").get(), {&line, 1});
@@ -361,7 +363,7 @@ BOOST_DATA_TEST_CASE(StoreLogLine,
 	BOOST_CHECK_EQUAL(stats.linesParsed, 1);
 	BOOST_CHECK_EQUAL(stats.linesParseFailed, 0);
 	BOOST_CHECK_EQUAL(stats.logsInserted, 1);
-	BOOST_CHECK_EQUAL(stats.entitiesInserted, 5);
+	BOOST_CHECK_EQUAL(stats.entitiesInserted, entities);
 	BOOST_CHECK_EQUAL(existingEntities->size(), 5);
 }
 
@@ -373,7 +375,7 @@ BOOST_AUTO_TEST_CASE(StoreLogLines_WithDuplicateOfDifferentType, *boost::unit_te
 	BOOST_CHECK_EQUAL(stats.linesParsed, 3);
 	BOOST_CHECK_EQUAL(stats.linesParseFailed, 0);
 	BOOST_CHECK_EQUAL(stats.logsInserted, 3);
-	BOOST_CHECK_EQUAL(stats.entitiesInserted, 11);
+	BOOST_CHECK_EQUAL(stats.entitiesInserted, 13);
 	BOOST_CHECK_EQUAL(existingEntities->size(), 11);
 }
 
@@ -515,7 +517,7 @@ BOOST_AUTO_TEST_CASE(FetchMockUserAgentDetail)
 	}
 }
 
-constexpr EntityId rollingEntityCounterBase = 14;
+constexpr EntityId rollingEntityCounterBase = 16;
 
 BOOST_AUTO_TEST_CASE(RecordUnparsable)
 {
