@@ -517,7 +517,7 @@ BOOST_AUTO_TEST_CASE(FetchMockUserAgentDetail)
 	}
 }
 
-constexpr EntityId rollingEntityCounterBase = 16;
+constexpr EntityId rollingEntityCounterBase = 15;
 
 BOOST_AUTO_TEST_CASE(RecordUnparsable)
 {

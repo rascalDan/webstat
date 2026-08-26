@@ -677,7 +677,7 @@ namespace WebStat {
 	}
 
 	std::tuple<EntityId, bool>
-	Ingestor::insertReferrer(DB::Connection * dbconn, Entity & entity, const std::string_view typeName) const
+	Ingestor::insertReferrer(DB::Connection * dbconn, Entity & entity, const std::string_view) const
 	{
 		if (auto uri = decomposeReferrer(entity.value)) {
 			auto valuesEntities = entities(*uri);
@@ -685,7 +685,7 @@ namespace WebStat {
 			storeNewEntities(dbconn, valuesEntities);
 		}
 
-		return insert<EntityId, bool>(dbconn, SQL::ENTITY_INSERT, SQL::ENTITY_INSERT_OPTS, entity.value, typeName);
+		return insert<EntityId, bool>(dbconn, SQL::REFERRER_RAW_INSERT, SQL::REFERRER_RAW_INSERT_OPTS, entity.value);
 	}
 
 	void

@@ -66,8 +66,11 @@ FOR VALUES IN ('query_string');
 ALTER TABLE query_strings
 	ADD CONSTRAINT pk_query_strings PRIMARY KEY (id);
 
-CREATE TABLE referrers PARTITION OF entities
-FOR VALUES IN ('referrer');
+CREATE TABLE referrers(
+	id integer GENERATED ALWAYS AS IDENTITY,
+	value text,
+	detail jsonb
+);
 
 ALTER TABLE referrers
 	ADD CONSTRAINT pk_referrers PRIMARY KEY (id);
@@ -98,6 +101,8 @@ CREATE OR REPLACE FUNCTION md5digest(value text)
 );
 
 CREATE UNIQUE INDEX uni_entities_value ON entities(md5digest(value), type);
+
+CREATE UNIQUE INDEX uni_referrers_value ON referrers(md5digest(value));
 
 CREATE INDEX idx_entities_retryinsert ON bad_lines(id)
 WHERE
@@ -147,6 +152,53 @@ BEGIN
 		WHERE
 			md5digest(e.value) = md5digest(newValue)
 			AND e.type = newType;
+	ELSE
+		RETURN QUERY
+	VALUES (recid,
+		nulldetail);
+	END IF;
+END;
+$$
+LANGUAGE plpgSQL
+RETURNS NULL ON NULL INPUT;
+
+CREATE OR REPLACE FUNCTION referrer_raw(newValue text)
+	RETURNS TABLE(
+		id integer,
+		nulldetail boolean
+	)
+	AS $$
+DECLARE
+	recid integer;
+	nulldetail boolean;
+BEGIN
+	INSERT INTO referrers(value)
+	SELECT
+		newValue
+	WHERE
+		NOT EXISTS (
+			SELECT
+			FROM
+				referrers
+			WHERE
+				md5digest(value) = md5digest(newValue))
+	ON CONFLICT
+		DO NOTHING
+	RETURNING
+		referrers.id,
+		referrers.detail IS NULL
+	INTO
+		recid,
+		nulldetail;
+	IF recid IS NULL THEN
+		RETURN QUERY
+		SELECT
+			e.id,
+			e.detail IS NULL
+		FROM
+			referrers e
+		WHERE
+			md5digest(e.value) = md5digest(newValue);
 	ELSE
 		RETURN QUERY
 	VALUES (recid,
