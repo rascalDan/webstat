@@ -69,7 +69,14 @@ ALTER TABLE query_strings
 CREATE TABLE referrers(
 	id integer GENERATED ALWAYS AS IDENTITY,
 	value text,
-	detail jsonb
+	scheme varchar(8),
+	virtual_host int,
+	path int,
+	query_string int,
+	detail jsonb,
+	CONSTRAINT fk_referrer_virtualhost FOREIGN KEY (virtual_host) REFERENCES virtual_hosts(id) ON UPDATE CASCADE,
+	CONSTRAINT fk_referrer_path FOREIGN KEY (path) REFERENCES paths(id) ON UPDATE CASCADE,
+	CONSTRAINT fk_referrer_query_string FOREIGN KEY (query_string) REFERENCES query_strings(id) ON UPDATE CASCADE
 );
 
 ALTER TABLE referrers
@@ -103,6 +110,8 @@ CREATE OR REPLACE FUNCTION md5digest(value text)
 CREATE UNIQUE INDEX uni_entities_value ON entities(md5digest(value), type);
 
 CREATE UNIQUE INDEX uni_referrers_value ON referrers(md5digest(value));
+
+CREATE UNIQUE INDEX uni_referrers_uris ON referrers(virtual_host, path, query_string, scheme);
 
 CREATE INDEX idx_entities_retryinsert ON bad_lines(id)
 WHERE
@@ -208,6 +217,63 @@ END;
 $$
 LANGUAGE plpgSQL
 RETURNS NULL ON NULL INPUT;
+
+CREATE OR REPLACE FUNCTION referrer_uri(newScheme text, newVhId int, newPathId int, newQsId int)
+	RETURNS TABLE(
+		id integer,
+		nulldetail boolean
+	)
+	AS $$
+BEGIN
+	RETURN QUERY WITH vals(
+		scheme,
+		virtual_host,
+		path,
+		query_string
+) AS(
+		VALUES(newScheme, newVhId, newPathId, newQsId)
+),
+matched AS(
+	SELECT
+		r.id, r.detail IS NULL
+	FROM
+		referrers r, vals v
+	WHERE
+		r.scheme = v.scheme
+		AND r.virtual_host = v.virtual_host
+		AND r.path = v.path
+		AND r.query_string IS NOT DISTINCT FROM v.query_string
+),
+ins AS(
+INSERT INTO referrers(scheme, virtual_host, path, query_string)
+	SELECT
+		scheme,
+		virtual_host,
+		path,
+		query_string
+	FROM
+		vals v
+	WHERE
+		NOT EXISTS(
+			SELECT
+			FROM
+				matched)
+		RETURNING
+			referrers.id,
+			TRUE
+)
+SELECT
+	m.*
+FROM
+	matched m
+UNION ALL
+SELECT
+	i.*
+FROM
+	ins i;
+END
+$$
+LANGUAGE plpgSQL;
 
 CREATE TABLE access_log(
 	hostname integer NOT NULL,

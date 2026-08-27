@@ -683,6 +683,12 @@ namespace WebStat {
 			auto valuesEntities = entities(*uri);
 			fillKnownEntities(valuesEntities);
 			storeNewEntities(dbconn, valuesEntities);
+			return std::apply(
+					[dbconn](auto... binds) {
+						return insert<EntityId, bool>(
+								dbconn, SQL::REFERRER_URI_INSERT, SQL::REFERRER_URI_INSERT_OPTS, binds...);
+					},
+					*uri);
 		}
 
 		return insert<EntityId, bool>(dbconn, SQL::REFERRER_RAW_INSERT, SQL::REFERRER_RAW_INSERT_OPTS, entity.value);

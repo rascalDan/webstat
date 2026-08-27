@@ -25,6 +25,9 @@ namespace WebStat::SQL {
 	const std::string REFERRER_RAW_INSERT {
 #embed "sql/referrerRawInsert.sql"
 	};
+	const std::string REFERRER_URI_INSERT {
+#embed "sql/referrerUriInsert.sql"
+	};
 	const std::string ENTITY_UPDATE_DETAIL {
 #embed "sql/entityUpdateDetail.sql"
 	};
@@ -52,6 +55,7 @@ namespace WebStat::SQL {
 	HASH_OPTS(UNPARSABLE_INSERT);
 	HASH_OPTS(UNINSERTABLE_INSERT);
 	HASH_OPTS(REFERRER_RAW_INSERT);
+	HASH_OPTS(REFERRER_URI_INSERT);
 	HASH_OPTS(ENTITY_UPDATE_DETAIL);
 	HASH_OPTS(HOST_UPSERT);
 	const DB::CommandOptionsPtr SELECT_UNINSERTABLE_OPTS
