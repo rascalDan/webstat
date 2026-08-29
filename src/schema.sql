@@ -307,6 +307,13 @@ CREATE INDEX idx_access_log_request_time ON access_log USING BRIN(request_time) 
 
 CREATE INDEX idx_access_log_virtual_host ON access_log(virtual_host);
 
+CREATE OR REPLACE FUNCTION compose_uri(scheme text, virtual_host text, path text, query_string text = NULL)
+	RETURNS text
+	LANGUAGE sql
+	IMMUTABLE parallel safe RETURN concat (
+		scheme, '://', virtual_host, path,('?' || query_string)
+);
+
 CREATE OR REPLACE VIEW access_log_view AS
 SELECT
 	h.id hostname_id,
@@ -325,7 +332,10 @@ SELECT
 	size,
 	duration,
 	r.id referrer_id,
-	r.value referrer,
+	r.virtual_host referrer_virtual_host_id,
+	r.path referrer_path_id,
+	r.query_string referrer_query_string_id,
+	coalesce(r.value, compose_uri(r.scheme, rv.value, rp.value, rq.value)) referrer,
 	u.id user_agent_id,
 	u.value user_agent,
 	c.id content_type_id,
@@ -337,5 +347,8 @@ FROM
 	LEFT OUTER JOIN paths p ON l.path = p.id
 	LEFT OUTER JOIN query_strings q ON l.query_string = q.id
 	LEFT OUTER JOIN referrers r ON l.referrer = r.id
+	LEFT OUTER JOIN virtual_hosts rv ON r.virtual_host = rv.id
+	LEFT OUTER JOIN paths rp ON r.path = rp.id
+	LEFT OUTER JOIN query_strings rq ON r.query_string = rq.id
 	LEFT OUTER JOIN user_agents u ON l.user_agent = u.id
 	LEFT OUTER JOIN content_types c ON l.content_type = c.id;

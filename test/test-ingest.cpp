@@ -758,7 +758,7 @@ BOOST_AUTO_TEST_CASE(FetchRealUserAgentDetail, *boost::unit_test::disabled())
 }
 
 using DecomposeUriData = std::tuple<std::string_view, std::string_view, std::string_view, std::string_view,
-		std::optional<std::string_view>>;
+		std::optional<std::string_view>, std::string_view>;
 
 BOOST_DATA_TEST_CASE(DecomposeReferrerUriBad,
 		boost::unit_test::data::make<std::string_view>({
@@ -775,11 +775,12 @@ BOOST_DATA_TEST_CASE(DecomposeReferrerUriBad,
 
 BOOST_DATA_TEST_CASE(DecomposeReferrerUri,
 		boost::unit_test::data::make<DecomposeUriData>({
-				{"https://www.example.com", "https", "www.example.com", "", std::nullopt},
+				{"https://www.example.com", "https", "www.example.com", "", std::nullopt, "https://www.example.com"},
 				{"https://john.doe@www.example.com:1234/forum/questions/?tag=networking&order=newest#top", "https",
-						"www.example.com", "/forum/questions/", "tag=networking&order=newest"},
+						"www.example.com", "/forum/questions/", "tag=networking&order=newest",
+						"https://www.example.com/forum/questions/?tag=networking&order=newest"},
 		}),
-		uri, scheme, host, path, querystring)
+		uri, scheme, host, path, querystring, recomposedUri)
 {
 	using WebStat::operator/;
 
@@ -790,4 +791,12 @@ BOOST_DATA_TEST_CASE(DecomposeReferrerUri,
 	BOOST_CHECK_EQUAL(duHost.value, host);
 	BOOST_CHECK_EQUAL(duPath.value, path);
 	BOOST_CHECK_EQUAL(duQueryString / &Entity::value, querystring);
+
+	auto dbconn = DB::MockDatabase::openConnectionTo("webstat");
+	auto select = dbconn->select("SELECT compose_uri(?, ?, ?, ?)");
+	bindMany(select, 0, scheme, host, path, querystring);
+	BOOST_REQUIRE(select->fetch());
+	std::string recomposed;
+	(*select)[0] >> recomposed;
+	BOOST_CHECK_EQUAL(recomposed, recomposedUri);
 }
