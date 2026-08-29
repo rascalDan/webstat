@@ -664,8 +664,9 @@ namespace WebStat {
 	{
 		// scheme ":" ["//" [userinfo "@"] host [":" port] ] path ["?" query] ["#" fragment]
 		if (const auto components = ctre::match<
-					R"REG(([a-z][a-z0-9+.\-]+):(?:\/\/(?:(?:[^@]+)@)?([^:\/]*)(?::(?:[0-9]+))?)([^?#]*)(?:\?([^#]+))?(?:#(.*))?)REG">(
+					R"REG(([a-z][a-z0-9+.\-]+):(?:\/\/(?:(?:[^@]+)@)?([^:\/]*)(?::(?:[0-9]+))?)([^?#]*)(?:\?([^#]+))?(?:#(?:.*))?)REG">(
 					uri)) {
+			static_assert(decltype(components)::count() == 5);
 			return ReferrerUri {
 					components.get<1>(),
 					ToEntity<EntityType::VirtualHost> {}(components.get<2>()),
