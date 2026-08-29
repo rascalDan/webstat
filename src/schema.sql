@@ -128,33 +128,8 @@ CREATE OR REPLACE FUNCTION entity(newValue text, newType entity)
 		nulldetail boolean
 	)
 	AS $$
-DECLARE
-	now timestamp without time zone;
-	recid integer;
-	nulldetail boolean;
 BEGIN
-	INSERT INTO entities(value, type)
-	SELECT
-		newValue,
-		newType
-	WHERE
-		NOT EXISTS (
-			SELECT
-			FROM
-				entities
-			WHERE
-				md5digest(value) = md5digest(newValue)
-				AND type = newType)
-	ON CONFLICT
-		DO NOTHING
-	RETURNING
-		entities.id,
-		entities.detail IS NULL
-	INTO
-		recid,
-		nulldetail;
-	IF recid IS NULL THEN
-		RETURN QUERY
+	RETURN QUERY WITH matched AS(
 		SELECT
 			e.id,
 			e.detail IS NULL
@@ -162,12 +137,31 @@ BEGIN
 			entities e
 		WHERE
 			md5digest(e.value) = md5digest(newValue)
-			AND e.type = newType;
-	ELSE
-		RETURN QUERY
-	VALUES (recid,
-		nulldetail);
-	END IF;
+			AND e.type = newType
+),
+ins AS(
+INSERT INTO entities(value, type)
+	SELECT
+		newValue,
+		newType
+	WHERE
+		NOT EXISTS(
+			SELECT
+			FROM
+				matched)
+		RETURNING
+			entities.id,
+			TRUE
+)
+SELECT
+	m.*
+FROM
+	matched m
+UNION ALL
+SELECT
+	i.*
+FROM
+	ins i;
 END;
 $$
 LANGUAGE plpgSQL
@@ -179,42 +173,38 @@ CREATE OR REPLACE FUNCTION referrer_raw(newValue text)
 		nulldetail boolean
 	)
 	AS $$
-DECLARE
-	recid integer;
-	nulldetail boolean;
 BEGIN
-	INSERT INTO referrers(value)
-	SELECT
-		newValue
-	WHERE
-		NOT EXISTS (
-			SELECT
-			FROM
-				referrers
-			WHERE
-				md5digest(value) = md5digest(newValue))
-	ON CONFLICT
-		DO NOTHING
-	RETURNING
-		referrers.id,
-		referrers.detail IS NULL
-	INTO
-		recid,
-		nulldetail;
-	IF recid IS NULL THEN
-		RETURN QUERY
+	RETURN QUERY WITH matched AS(
 		SELECT
 			e.id,
 			e.detail IS NULL
 		FROM
 			referrers e
 		WHERE
-			md5digest(e.value) = md5digest(newValue);
-	ELSE
-		RETURN QUERY
-	VALUES (recid,
-		nulldetail);
-	END IF;
+			md5digest(e.value) = md5digest(newValue)
+),
+ins AS(
+INSERT INTO referrers(value)
+	SELECT
+		newValue
+	WHERE
+		NOT EXISTS(
+			SELECT
+			FROM
+				matched)
+		RETURNING
+			referrers.id,
+			TRUE
+)
+SELECT
+	m.*
+FROM
+	matched m
+UNION ALL
+SELECT
+	i.*
+FROM
+	ins i;
 END;
 $$
 LANGUAGE plpgSQL
@@ -227,34 +217,25 @@ CREATE OR REPLACE FUNCTION referrer_uri(newScheme text, newVhId int, newPathId i
 	)
 	AS $$
 BEGIN
-	RETURN QUERY WITH vals(
-		scheme,
-		virtual_host,
-		path,
-		query_string
-) AS(
-		VALUES(newScheme, newVhId, newPathId, newQsId)
-),
-matched AS(
-	SELECT
-		r.id, r.detail IS NULL
-	FROM
-		referrers r, vals v
-	WHERE
-		r.scheme = v.scheme
-		AND r.virtual_host = v.virtual_host
-		AND r.path = v.path
-		AND r.query_string IS NOT DISTINCT FROM v.query_string
+	RETURN QUERY WITH matched AS(
+		SELECT
+			r.id,
+			r.detail IS NULL
+		FROM
+			referrers r
+		WHERE
+			r.scheme = newScheme
+			AND r.virtual_host = newVhId
+			AND r.path = newPathId
+			AND r.query_string IS NOT DISTINCT FROM newQsId
 ),
 ins AS(
 INSERT INTO referrers(scheme, virtual_host, path, query_string)
 	SELECT
-		scheme,
-		virtual_host,
-		path,
-		query_string
-	FROM
-		vals v
+		newScheme,
+		newVhId,
+		newPathId,
+		newQsId
 	WHERE
 		NOT EXISTS(
 			SELECT
