@@ -74,6 +74,8 @@ CREATE TABLE referrers(
 	path int,
 	query_string int,
 	detail jsonb,
+	CHECK (value IS NOT NULL !=(scheme IS NOT NULL AND virtual_host IS NOT NULL AND path IS NOT NULL)),
+	CHECK (NOT (query_string IS NOT NULL AND value IS NOT NULL)),
 	CONSTRAINT fk_referrer_virtualhost FOREIGN KEY (virtual_host) REFERENCES virtual_hosts(id) ON UPDATE CASCADE,
 	CONSTRAINT fk_referrer_path FOREIGN KEY (path) REFERENCES paths(id) ON UPDATE CASCADE,
 	CONSTRAINT fk_referrer_query_string FOREIGN KEY (query_string) REFERENCES query_strings(id) ON UPDATE CASCADE
