@@ -66,8 +66,20 @@ FOR VALUES IN ('query_string');
 ALTER TABLE query_strings
 	ADD CONSTRAINT pk_query_strings PRIMARY KEY (id);
 
-CREATE TABLE referrers PARTITION OF entities
-FOR VALUES IN ('referrer');
+CREATE TABLE referrers(
+	id integer GENERATED ALWAYS AS IDENTITY,
+	value text,
+	scheme varchar(8),
+	virtual_host int,
+	path int,
+	query_string int,
+	detail jsonb,
+	CHECK (value IS NOT NULL !=(scheme IS NOT NULL AND virtual_host IS NOT NULL AND path IS NOT NULL)),
+	CHECK (NOT (query_string IS NOT NULL AND value IS NOT NULL)),
+	CONSTRAINT fk_referrer_virtualhost FOREIGN KEY (virtual_host) REFERENCES virtual_hosts(id) ON UPDATE CASCADE,
+	CONSTRAINT fk_referrer_path FOREIGN KEY (path) REFERENCES paths(id) ON UPDATE CASCADE,
+	CONSTRAINT fk_referrer_query_string FOREIGN KEY (query_string) REFERENCES query_strings(id) ON UPDATE CASCADE
+);
 
 ALTER TABLE referrers
 	ADD CONSTRAINT pk_referrers PRIMARY KEY (id);
@@ -99,6 +111,10 @@ CREATE OR REPLACE FUNCTION md5digest(value text)
 
 CREATE UNIQUE INDEX uni_entities_value ON entities(md5digest(value), type);
 
+CREATE UNIQUE INDEX uni_referrers_value ON referrers(md5digest(value));
+
+CREATE UNIQUE INDEX uni_referrers_uris ON referrers(virtual_host, path, query_string, scheme);
+
 CREATE INDEX idx_entities_retryinsert ON bad_lines(id)
 WHERE
 	type = 'uninsertable_line' AND detail ->> 'retriedAt' IS NULL;
@@ -112,33 +128,8 @@ CREATE OR REPLACE FUNCTION entity(newValue text, newType entity)
 		nulldetail boolean
 	)
 	AS $$
-DECLARE
-	now timestamp without time zone;
-	recid integer;
-	nulldetail boolean;
 BEGIN
-	INSERT INTO entities(value, type)
-	SELECT
-		newValue,
-		newType
-	WHERE
-		NOT EXISTS (
-			SELECT
-			FROM
-				entities
-			WHERE
-				md5digest(value) = md5digest(newValue)
-				AND type = newType)
-	ON CONFLICT
-		DO NOTHING
-	RETURNING
-		entities.id,
-		entities.detail IS NULL
-	INTO
-		recid,
-		nulldetail;
-	IF recid IS NULL THEN
-		RETURN QUERY
+	RETURN QUERY WITH matched AS(
 		SELECT
 			e.id,
 			e.detail IS NULL
@@ -146,16 +137,126 @@ BEGIN
 			entities e
 		WHERE
 			md5digest(e.value) = md5digest(newValue)
-			AND e.type = newType;
-	ELSE
-		RETURN QUERY
-	VALUES (recid,
-		nulldetail);
-	END IF;
+			AND e.type = newType
+),
+ins AS(
+INSERT INTO entities(value, type)
+	SELECT
+		newValue,
+		newType
+	WHERE
+		NOT EXISTS(
+			SELECT
+			FROM
+				matched)
+		RETURNING
+			entities.id,
+			TRUE
+)
+SELECT
+	m.*
+FROM
+	matched m
+UNION ALL
+SELECT
+	i.*
+FROM
+	ins i;
 END;
 $$
 LANGUAGE plpgSQL
 RETURNS NULL ON NULL INPUT;
+
+CREATE OR REPLACE FUNCTION referrer_raw(newValue text)
+	RETURNS TABLE(
+		id integer,
+		nulldetail boolean
+	)
+	AS $$
+BEGIN
+	RETURN QUERY WITH matched AS(
+		SELECT
+			e.id,
+			e.detail IS NULL
+		FROM
+			referrers e
+		WHERE
+			md5digest(e.value) = md5digest(newValue)
+),
+ins AS(
+INSERT INTO referrers(value)
+	SELECT
+		newValue
+	WHERE
+		NOT EXISTS(
+			SELECT
+			FROM
+				matched)
+		RETURNING
+			referrers.id,
+			TRUE
+)
+SELECT
+	m.*
+FROM
+	matched m
+UNION ALL
+SELECT
+	i.*
+FROM
+	ins i;
+END;
+$$
+LANGUAGE plpgSQL
+RETURNS NULL ON NULL INPUT;
+
+CREATE OR REPLACE FUNCTION referrer_uri(newScheme text, newVhId int, newPathId int, newQsId int)
+	RETURNS TABLE(
+		id integer,
+		nulldetail boolean
+	)
+	AS $$
+BEGIN
+	RETURN QUERY WITH matched AS(
+		SELECT
+			r.id,
+			r.detail IS NULL
+		FROM
+			referrers r
+		WHERE
+			r.scheme = newScheme
+			AND r.virtual_host = newVhId
+			AND r.path = newPathId
+			AND r.query_string IS NOT DISTINCT FROM newQsId
+),
+ins AS(
+INSERT INTO referrers(scheme, virtual_host, path, query_string)
+	SELECT
+		newScheme,
+		newVhId,
+		newPathId,
+		newQsId
+	WHERE
+		NOT EXISTS(
+			SELECT
+			FROM
+				matched)
+		RETURNING
+			referrers.id,
+			TRUE
+)
+SELECT
+	m.*
+FROM
+	matched m
+UNION ALL
+SELECT
+	i.*
+FROM
+	ins i;
+END
+$$
+LANGUAGE plpgSQL;
 
 CREATE TABLE access_log(
 	hostname integer NOT NULL,
@@ -189,6 +290,13 @@ CREATE INDEX idx_access_log_request_time ON access_log USING BRIN(request_time) 
 
 CREATE INDEX idx_access_log_virtual_host ON access_log(virtual_host);
 
+CREATE OR REPLACE FUNCTION compose_uri(scheme text, virtual_host text, path text, query_string text = NULL)
+	RETURNS text
+	LANGUAGE sql
+	IMMUTABLE parallel safe RETURN concat (
+		scheme, '://', virtual_host, path,('?' || query_string)
+);
+
 CREATE OR REPLACE VIEW access_log_view AS
 SELECT
 	h.id hostname_id,
@@ -207,7 +315,10 @@ SELECT
 	size,
 	duration,
 	r.id referrer_id,
-	r.value referrer,
+	r.virtual_host referrer_virtual_host_id,
+	r.path referrer_path_id,
+	r.query_string referrer_query_string_id,
+	coalesce(r.value, compose_uri(r.scheme, rv.value, rp.value, rq.value)) referrer,
 	u.id user_agent_id,
 	u.value user_agent,
 	c.id content_type_id,
@@ -219,5 +330,8 @@ FROM
 	LEFT OUTER JOIN paths p ON l.path = p.id
 	LEFT OUTER JOIN query_strings q ON l.query_string = q.id
 	LEFT OUTER JOIN referrers r ON l.referrer = r.id
+	LEFT OUTER JOIN virtual_hosts rv ON r.virtual_host = rv.id
+	LEFT OUTER JOIN paths rp ON r.path = rp.id
+	LEFT OUTER JOIN query_strings rq ON r.query_string = rq.id
 	LEFT OUTER JOIN user_agents u ON l.user_agent = u.id
 	LEFT OUTER JOIN content_types c ON l.content_type = c.id;

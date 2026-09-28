@@ -66,6 +66,11 @@ namespace WebStat {
 						QueryString, std::string_view, uint16_t, uint64_t, uint64_t, CLFString, CLFString, CLFString>(
 						std::declval<std::string_view>(), ""));
 		using ScanValues = std::remove_cvref_t<decltype(std::declval<WebStat::Ingestor::ScanResult>()->values())>;
+		using ReferrerUri = std::tuple<std::string_view, // scheme
+				Entity, // host
+				Entity, // path
+				std::optional<Entity> // querystring
+				>;
 
 		[[nodiscard]] static ScanResult scanLogLine(std::string_view);
 
@@ -98,6 +103,8 @@ namespace WebStat {
 			constexpr bool operator==(const Ingestor::Stats &) const = default;
 		};
 
+		static std::optional<ReferrerUri> decomposeReferrer(std::string_view);
+
 	protected:
 		void finishAllJobs();
 		void runJobAsNeeded(Job &, std::chrono::minutes freq);
@@ -122,6 +129,9 @@ namespace WebStat {
 		void fillKnownEntities(std::span<Entity *>) const;
 		void storeNewEntities(DB::Connection *, std::span<Entity *>) const;
 		void storeNewEntity(DB::Connection *, Entity &) const;
+		using EntityInsertResult = std::tuple<EntityId, bool>;
+		EntityInsertResult insertGenericEntity(DB::Connection *, Entity &, std::string_view) const;
+		EntityInsertResult insertReferrer(DB::Connection *, Entity &, std::string_view) const;
 		static EntityId storeUnparsableLine(DB::Connection *, EntityId, std::string_view);
 		static EntityId storeUninsertableLine(DB::Connection *, EntityId, std::string_view, const std::exception &);
 		void onNewUserAgent(const Entity &) const;

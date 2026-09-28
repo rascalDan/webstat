@@ -348,12 +348,14 @@ static constexpr std::array<std::string_view, 9> ENTITY_TYPE_VALUES {{
 BOOST_FIXTURE_TEST_SUITE(I, TestIngestor);
 BOOST_TEST_DECORATOR(*boost::unit_test::depends_on("ExtractFields"))
 
+using StoreLogLineData = std::tuple<std::string_view, size_t>;
+
 BOOST_DATA_TEST_CASE(StoreLogLine,
-		boost::unit_test::data::make({
-				LOGLINE1,
-				LOGLINE2,
+		boost::unit_test::data::make<StoreLogLineData>({
+				{LOGLINE1, 5},
+				{LOGLINE2, 7},
 		}),
-		lineIn)
+		lineIn, entities)
 {
 	const std::string line {lineIn};
 	ingestLogLines(DB::MockDatabase::openConnectionTo("webstat").get(), {&line, 1});
@@ -361,7 +363,7 @@ BOOST_DATA_TEST_CASE(StoreLogLine,
 	BOOST_CHECK_EQUAL(stats.linesParsed, 1);
 	BOOST_CHECK_EQUAL(stats.linesParseFailed, 0);
 	BOOST_CHECK_EQUAL(stats.logsInserted, 1);
-	BOOST_CHECK_EQUAL(stats.entitiesInserted, 5);
+	BOOST_CHECK_EQUAL(stats.entitiesInserted, entities);
 	BOOST_CHECK_EQUAL(existingEntities->size(), 5);
 }
 
@@ -373,7 +375,7 @@ BOOST_AUTO_TEST_CASE(StoreLogLines_WithDuplicateOfDifferentType, *boost::unit_te
 	BOOST_CHECK_EQUAL(stats.linesParsed, 3);
 	BOOST_CHECK_EQUAL(stats.linesParseFailed, 0);
 	BOOST_CHECK_EQUAL(stats.logsInserted, 3);
-	BOOST_CHECK_EQUAL(stats.entitiesInserted, 11);
+	BOOST_CHECK_EQUAL(stats.entitiesInserted, 13);
 	BOOST_CHECK_EQUAL(existingEntities->size(), 11);
 }
 
@@ -515,7 +517,7 @@ BOOST_AUTO_TEST_CASE(FetchMockUserAgentDetail)
 	}
 }
 
-constexpr EntityId rollingEntityCounterBase = 14;
+constexpr EntityId rollingEntityCounterBase = 15;
 
 BOOST_AUTO_TEST_CASE(RecordUnparsable)
 {
@@ -753,4 +755,48 @@ BOOST_AUTO_TEST_CASE(FetchRealUserAgentDetail, *boost::unit_test::disabled())
 		BOOST_CHECK(uaDetailReq->result.contains(R"("agent_type":)"));
 		BOOST_CHECK(uaDetailReq->result.contains(R"("os_type":)"));
 	}
+}
+
+using DecomposeUriData = std::tuple<std::string_view, std::string_view, std::string_view, std::string_view,
+		std::optional<std::string_view>, std::string_view>;
+
+BOOST_DATA_TEST_CASE(DecomposeReferrerUriBad,
+		boost::unit_test::data::make<std::string_view>({
+				"",
+				"not a uri",
+				"www.google.com",
+				"www.google.com/",
+				"www.google.com/path",
+		}),
+		uri)
+{
+	BOOST_CHECK(!Ingestor::decomposeReferrer(uri));
+}
+
+BOOST_DATA_TEST_CASE(DecomposeReferrerUri,
+		boost::unit_test::data::make<DecomposeUriData>({
+				{"https://www.example.com", "https", "www.example.com", "", std::nullopt, "https://www.example.com"},
+				{"https://john.doe@www.example.com:1234/forum/questions/?tag=networking&order=newest#top", "https",
+						"www.example.com", "/forum/questions/", "tag=networking&order=newest",
+						"https://www.example.com/forum/questions/?tag=networking&order=newest"},
+		}),
+		uri, scheme, host, path, querystring, recomposedUri)
+{
+	using WebStat::operator/;
+
+	const auto decomposedUri = Ingestor::decomposeReferrer(uri);
+	BOOST_REQUIRE(decomposedUri);
+	const auto [duScheme, duHost, duPath, duQueryString] = *decomposedUri;
+	BOOST_CHECK_EQUAL(duScheme, scheme);
+	BOOST_CHECK_EQUAL(duHost.value, host);
+	BOOST_CHECK_EQUAL(duPath.value, path);
+	BOOST_CHECK_EQUAL(duQueryString / &Entity::value, querystring);
+
+	auto dbconn = DB::MockDatabase::openConnectionTo("webstat");
+	auto select = dbconn->select("SELECT compose_uri(?, ?, ?, ?)");
+	bindMany(select, 0, scheme, host, path, querystring);
+	BOOST_REQUIRE(select->fetch());
+	std::string recomposed;
+	(*select)[0] >> recomposed;
+	BOOST_CHECK_EQUAL(recomposed, recomposedUri);
 }

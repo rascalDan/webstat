@@ -57,4 +57,13 @@ namespace WebStat {
 
 		const std::filesystem::path path;
 	};
+
+	template<typename T>
+	constexpr auto
+	operator/(const std::optional<T> & opt, auto T::* field)
+	{
+		return opt.transform([field](auto && val) {
+			return (val.*field);
+		});
+	}
 }
