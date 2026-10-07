@@ -781,6 +781,8 @@ BOOST_DATA_TEST_CASE(DecomposeReferrerUri,
 				{"https://john.doe@www.example.com:1234/forum/questions/?tag=networking&order=newest#top", "https",
 						"www.example.com", "/forum/questions/", "tag=networking&order=newest",
 						"https://www.example.com/forum/questions/?tag=networking&order=newest"},
+				{"HtTp://TeSt.com/pAth?Query=String", "http", "TeSt.com", "/pAth", "Query=String",
+						"http://TeSt.com/pAth?Query=String"},
 		}),
 		uri, scheme, host, path, querystring, recomposedUri)
 {

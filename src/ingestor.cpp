@@ -664,11 +664,11 @@ namespace WebStat {
 	{
 		// scheme ":" ["//" [userinfo "@"] host [":" port] ] path ["?" query] ["#" fragment]
 		if (const auto components = ctre::match<
-					R"REG(([a-z][a-z0-9+.\-]+):(?:\/\/(?:(?:[^ @]+)@)?([^ :\/]*)(?::(?:[0-9]+))?)([^ ?#]*)(?:\?([^ #]+))?(?:#(?:[^ ]*))?)REG">(
+					R"REG(([a-zA-Z][a-zA-Z0-9+.\-]+):(?:\/\/(?:(?:[^ @]+)@)?([^ :\/]*)(?::(?:[0-9]+))?)([^ ?#]*)(?:\?([^ #]+))?(?:#(?:[^ ]*))?)REG">(
 					uri)) {
 			static_assert(decltype(components)::count() == 5);
 			return ReferrerUri {
-					components.get<1>(),
+					{std::from_range, components.get<1>() | std::views::transform(::tolower)},
 					ToEntity<EntityType::VirtualHost> {}(components.get<2>()),
 					ToEntity<EntityType::Path> {}(components.get<3>()),
 					ToEntity<EntityType::QueryString> {}(components.get<4>().to_optional_view()),
@@ -685,7 +685,7 @@ namespace WebStat {
 			fillKnownEntities(valuesEntities);
 			storeNewEntities(dbconn, valuesEntities);
 			return std::apply(
-					[dbconn](auto... binds) {
+					[dbconn](const auto &... binds) {
 						return insert<EntityId, bool>(
 								dbconn, SQL::REFERRER_URI_INSERT, SQL::REFERRER_URI_INSERT_OPTS, binds...);
 					},
