@@ -148,4 +148,6 @@ namespace WebStat {
 
 	std::error_code renameNoExcept(
 			const std::filesystem::path & path, const std::filesystem::path & finalPath) noexcept;
+
+	int fileno(const std::istream &);
 }
