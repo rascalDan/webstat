@@ -74,7 +74,7 @@ namespace WebStat {
 
 		[[nodiscard]] static ScanResult scanLogLine(std::string_view);
 
-		void ingestLog(std::FILE *);
+		void ingestLog(std::istream &);
 		std::pair<std::future<Job::Result> &, bool> beginIngestQueuedLogLines();
 		void ingestLogLines(DB::Connection *, LinesView lines);
 		bool previousIngestErrored = false;

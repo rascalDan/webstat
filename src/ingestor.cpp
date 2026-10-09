@@ -250,7 +250,7 @@ namespace WebStat {
 	}
 
 	void
-	Ingestor::ingestLog(std::FILE * input)
+	Ingestor::ingestLog(std::istream & input)
 	{
 		curl_waitfd logIn {.fd = fileno(input), .events = CURL_WAIT_POLLIN, .revents = 0};
 
@@ -258,9 +258,10 @@ namespace WebStat {
 				std::chrono::duration_cast<std::chrono::milliseconds>(settings.checkJobsAfter).count());
 		while (!terminated && curl_multi_poll(curl.get(), &logIn, 1, curlTimeOut, nullptr) == CURLM_OK) {
 			if (logIn.revents) {
-				if (auto line = scn::scan<std::string>(input, "{:[^\n]}\n")) {
+				std::string line;
+				if (std::getline(input, line).good()) {
 					stats.linesRead++;
-					queuedLines.emplace_back(std::move(line->value()));
+					queuedLines.emplace_back(std::move(line));
 					if (queuedLines.size() >= settings.maxBatchSize) {
 						beginIngestQueuedLogLines();
 					}

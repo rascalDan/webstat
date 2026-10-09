@@ -1,5 +1,6 @@
 #include <benchmark/benchmark.h>
 #include <filesystem>
+#include <fstream>
 
 #include "testing-util.hpp"
 #include <c++11Helpers.h>
@@ -42,8 +43,8 @@ namespace {
 						.maxBatchSize = static_cast<size_t>(state.range(0)),
 				}};
 		for (auto loop : state) {
-			WebStat::FilePtr logFile {fopen(TMP_LOG.c_str(), "r")};
-			ingestor.ingestLog(logFile.get());
+			std::ifstream logFile {TMP_LOG};
+			ingestor.ingestLog(logFile);
 		}
 	}
 }

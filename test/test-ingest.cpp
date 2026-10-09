@@ -3,7 +3,7 @@
 #include <boost/test/unit_test.hpp>
 
 #include "testing-util.hpp"
-#include <cstdio>
+#include <fstream>
 #include <selectcommandUtil.impl.h>
 
 #include <ingestor.hpp>
@@ -382,9 +382,9 @@ BOOST_AUTO_TEST_CASE(StoreLogLines_WithDuplicateOfDifferentType, *boost::unit_te
 BOOST_AUTO_TEST_CASE(StoreLog, *boost::unit_test::depends_on("I/StoreLogLine"))
 {
 	WebStat::LogFile log {"/tmp/store-log-fixture.log", 10};
-	WebStat::FilePtr input {fopen(log.path.c_str(), "r")};
-	BOOST_REQUIRE(input);
-	BOOST_CHECK_NO_THROW(ingestLog(input.get()));
+	std::ifstream input {log.path};
+	BOOST_REQUIRE(input.good());
+	BOOST_CHECK_NO_THROW(ingestLog(input));
 	BOOST_CHECK_EQUAL(stats.linesRead, 10);
 	BOOST_CHECK_LE(stats.linesParsed, 10);
 	BOOST_CHECK_EQUAL(stats.linesParseFailed, 0);
@@ -396,12 +396,12 @@ BOOST_AUTO_TEST_CASE(StoreLog, *boost::unit_test::depends_on("I/StoreLogLine"))
 
 BOOST_AUTO_TEST_CASE(TerminateHandler, *boost::unit_test::timeout(5))
 {
-	WebStat::FilePtr input {fopen("/dev/null", "r")};
-	BOOST_REQUIRE(input);
+	std::ifstream input {"/dev/null"};
+	BOOST_REQUIRE(input.good());
 	BOOST_REQUIRE(!terminated);
 	raise(SIGTERM);
 	BOOST_REQUIRE(terminated);
-	ingestLog(input.get());
+	ingestLog(input);
 	BOOST_CHECK_EQUAL(stats.linesRead, 0);
 	BOOST_CHECK_EQUAL(stats.linesParsed, 0);
 	BOOST_CHECK_EQUAL(stats.linesParseFailed, 0);

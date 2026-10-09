@@ -126,7 +126,7 @@ main(int argc, char ** argv)
 			return runJobByName(ingestor, jobNameItr->second.as<std::string>());
 		}
 
-		ingestor.ingestLog(stdin);
+		ingestor.ingestLog(std::cin);
 		return EXIT_SUCCESS;
 	}
 	catch (const std::exception & excp) {
