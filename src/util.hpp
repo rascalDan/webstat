@@ -27,8 +27,6 @@ namespace WebStat {
 				values);
 	}
 
-	using FilePtr = std::unique_ptr<std::FILE, DeleteWith<&fclose>>;
-
 	template<typename... T>
 	void
 	bindMany(const DB::CommandPtr & cmd, unsigned int firstParam, T &&... param)
@@ -60,7 +58,7 @@ namespace WebStat {
 						{detail::add<Rep, Period, std::chrono::hours>, "h"},
 						{detail::add<Rep, Period, std::chrono::days>, "d"},
 						{detail::add<Rep, Period, std::chrono::weeks>, "w"},
-				};
+		};
 
 		std::chrono::duration<Rep, Period> out {};
 		auto inputSubRange = scn::ranges::subrange {input};

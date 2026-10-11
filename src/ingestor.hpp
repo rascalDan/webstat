@@ -6,7 +6,6 @@
 #include <c++11Helpers.h>
 #include <connectionPool.h>
 #include <connection_fwd.h>
-#include <cstdio>
 #include <expected>
 #include <future>
 #include <map>
@@ -143,7 +142,7 @@ namespace WebStat {
 		void finalizeJob(Job &, minutes freq, Job::LastRunTime::clock::time_point now);
 
 		LineBatch jobReadParkedLines(const std::filesystem::path &);
-		LineBatch jobReadParkedLines(FILE *, size_t count);
+		LineBatch jobReadParkedLines(std::istream &, size_t count);
 
 		static void sigtermHandler(int);
 		void terminate(int);

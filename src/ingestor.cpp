@@ -579,34 +579,38 @@ namespace WebStat {
 	Ingestor::LineBatch
 	Ingestor::jobReadParkedLines(const std::filesystem::path & path)
 	{
-		if (auto parked = FilePtr(fopen(path.c_str(), "r"))) {
-			if (auto count = scn::scan<size_t>(parked.get(), "{}\n")) {
-				try {
-					return jobReadParkedLines(parked.get(), count->value());
-				}
-				catch (...) {
-					auto failPath = auto {path}.replace_extension(".short");
-					rename(path.c_str(), failPath.c_str());
-					throw;
-				}
-			}
+		std::ifstream parked;
+		parked.exceptions(~std::ios::goodbit);
+		parked.open(path);
+		try {
+			const size_t count = [&parked]() {
+				size_t countIn = 0;
+				parked >> countIn >> std::ws;
+				return countIn;
+			}();
+			return jobReadParkedLines(parked, count);
 		}
-		throw std::system_error {errno, std::generic_category(), strerror(errno)};
+		catch (...) {
+			auto failPath = auto {path}.replace_extension(".short");
+			std::error_code renameErr;
+			if (std::filesystem::rename(path, failPath, renameErr); renameErr) {
+				log(LOG_WARNING, "Failed to rename failing parked file (%s -> %s) : %s", path.c_str(), failPath.c_str(),
+						renameErr.message().c_str());
+			}
+			throw;
+		}
 	}
 
 	Ingestor::LineBatch
-	Ingestor::jobReadParkedLines(FILE * lines, size_t count)
+	Ingestor::jobReadParkedLines(std::istream & lines, size_t count)
 	{
 		LineBatch parkedLines;
 		parkedLines.reserve(count);
 		for (size_t lineNo = 0; lineNo < count; ++lineNo) {
-			if (auto line = scn::scan<std::string>(lines, "{:[^\n]}\n")) {
-				stats.linesRead++;
-				parkedLines.emplace_back(std::move(line->value()));
-			}
-			else {
-				throw std::system_error {errno, std::generic_category(), "Short read of parked file"};
-			}
+			std::string line;
+			std::getline(lines, line);
+			stats.linesRead++;
+			parkedLines.emplace_back(std::move(line));
 		}
 		return parkedLines;
 	}
