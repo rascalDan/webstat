@@ -254,9 +254,9 @@ namespace WebStat {
 	{
 		curl_waitfd logIn {.fd = fileno(input), .events = CURL_WAIT_POLLIN, .revents = 0};
 
-		const auto curlTimeOut = static_cast<int>(
-				std::chrono::duration_cast<std::chrono::milliseconds>(settings.checkJobsAfter).count());
-		while (!terminated && curl_multi_poll(curl.get(), &logIn, 1, curlTimeOut, nullptr) == CURLM_OK) {
+		using CurlTimeOutT = std::chrono::duration<int, std::milli>;
+		const CurlTimeOutT curlTimeOut = settings.checkJobsAfter;
+		while (!terminated && curl_multi_poll(curl.get(), &logIn, 1, curlTimeOut.count(), nullptr) == CURLM_OK) {
 			if (logIn.revents) {
 				std::string line;
 				if (std::getline(input, line).good()) {
