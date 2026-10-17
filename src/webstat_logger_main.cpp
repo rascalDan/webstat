@@ -88,6 +88,8 @@ main(int argc, char ** argv)
 		 "Number of write/read write DB connections to keep open")
 		("db.maxBatchSize", po::value(&settings.maxBatchSize)->default_value(settings.maxBatchSize),
 		 "Number of access log entries to hold in memory before starting to write them to the DB")
+		("db.maxBatchAge", po::value(&settings.maxBatchAge)->default_value(settings.maxBatchAge),
+		 "Maximum age of an access log entry held in memory before starting to write them to the DB")
 		("fallback.dir", po::value(&settings.fallbackDir)->default_value(settings.fallbackDir),
 		 "Path to write access logs to when the database is unavailable")
 		("jobs.check", po::value(&settings.checkJobsAfter)->default_value(settings.checkJobsAfter),

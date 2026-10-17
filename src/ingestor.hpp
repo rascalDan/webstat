@@ -25,6 +25,7 @@ namespace WebStat {
 		unsigned int dbMax = 4;
 		unsigned int dbKeep = 2;
 		size_t maxBatchSize = 1;
+		minutes maxBatchAge = 2min;
 		minutes checkJobsAfter = 1min;
 		minutes freqIngestParkedLines = 30min;
 		minutes freqRetryUninsertableLines = 4h;
@@ -113,6 +114,7 @@ namespace WebStat {
 		mutable Stats stats {};
 
 		ThreadSafeT<std::map<EntityKey, EntityId>> existingEntities;
+		std::optional<std::chrono::system_clock::time_point> forceBatchAfter;
 		LineBatch queuedLines, processingLines;
 
 		bool terminated = false;

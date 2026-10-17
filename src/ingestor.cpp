@@ -261,8 +261,12 @@ namespace WebStat {
 				std::string line;
 				if (std::getline(input, line).good()) {
 					stats.linesRead++;
+					const auto now = std::chrono::system_clock::now();
+					if (!forceBatchAfter) {
+						forceBatchAfter = now + settings.maxBatchAge;
+					}
 					queuedLines.emplace_back(std::move(line));
-					if (queuedLines.size() >= settings.maxBatchSize) {
+					if (queuedLines.size() >= settings.maxBatchSize || now >= forceBatchAfter) {
 						beginIngestQueuedLogLines();
 					}
 				}
@@ -305,6 +309,7 @@ namespace WebStat {
 		}
 		if (processingLines.empty()) {
 			std::swap(queuedLines, processingLines);
+			forceBatchAfter.reset();
 		}
 		return {storeQueueLines.currentRun.emplace(std::async(std::launch::async, storeQueueLines.impl, this)), true};
 	}
