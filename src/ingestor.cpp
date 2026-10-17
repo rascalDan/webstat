@@ -258,19 +258,7 @@ namespace WebStat {
 		const CurlTimeOutT curlTimeOut = settings.checkJobsAfter;
 		while (!terminated && curl_multi_poll(curl.get(), &logIn, 1, curlTimeOut.count(), nullptr) == CURLM_OK) {
 			if (logIn.revents) {
-				std::string line;
-				if (std::getline(input, line).good()) {
-					stats.linesRead++;
-					const auto now = std::chrono::system_clock::now();
-					if (!forceBatchAfter) {
-						forceBatchAfter = now + settings.maxBatchAge;
-					}
-					queuedLines.emplace_back(std::move(line));
-					if (queuedLines.size() >= settings.maxBatchSize || now >= forceBatchAfter) {
-						beginIngestQueuedLogLines();
-					}
-				}
-				else {
+				if (!inputEvent(input)) {
 					break;
 				}
 			}
@@ -286,6 +274,33 @@ namespace WebStat {
 		storeQueueLines.currentRun.reset();
 		std::ignore = parkLogLines(queuedLines);
 		std::ignore = parkLogLines(processingLines);
+		finishCurlOperations();
+		jobHandleCompleteCurlOps();
+		logStats();
+	}
+
+	bool
+	Ingestor::inputEvent(std::istream & input)
+	{
+		std::string line;
+		if (std::getline(input, line).good()) {
+			stats.linesRead++;
+			const auto now = std::chrono::system_clock::now();
+			if (!forceBatchAfter) {
+				forceBatchAfter = now + settings.maxBatchAge;
+			}
+			queuedLines.emplace_back(std::move(line));
+			if (queuedLines.size() >= settings.maxBatchSize || now >= forceBatchAfter) {
+				beginIngestQueuedLogLines();
+			}
+			return true;
+		}
+		return false;
+	}
+
+	void
+	Ingestor::finishCurlOperations()
+	{
 		withCurlLock([this]() {
 			if (!curlOperations.empty()) {
 				int running = -1;
@@ -294,8 +309,6 @@ namespace WebStat {
 				}
 			}
 		});
-		jobHandleCompleteCurlOps();
-		logStats();
 	}
 
 	std::pair<std::future<Ingestor::Job::Result> &, bool>
