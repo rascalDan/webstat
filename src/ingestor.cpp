@@ -580,7 +580,7 @@ namespace WebStat {
 	{
 		for (auto pathIter = std::filesystem::directory_iterator {settings.fallbackDir};
 				pathIter != std::filesystem::directory_iterator {}; ++pathIter) {
-			if (scn::scan<std::string>(pathIter->path().filename().string(), "parked-{:[a-zA-Z0-9]}.log")) {
+			if (ctre::match<R"(^parked-[a-zA-Z0-9]+.log$)">(pathIter->path().filename().string())) {
 				return [lines = jobReadParkedLines(pathIter->path()), this, path = pathIter->path()]() mutable {
 					auto count = lines.size();
 					queuedLines.append_range(std::move(lines));
