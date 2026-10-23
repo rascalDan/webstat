@@ -1,9 +1,9 @@
 #pragma once
 
+#include "string_view_stream.hpp"
 #include <chrono>
 #include <command.h>
 #include <filesystem>
-#include <scn/scan.h>
 #include <shared_mutex>
 #include <tuple>
 
@@ -61,16 +61,17 @@ namespace WebStat {
 		};
 
 		std::chrono::duration<Rep, Period> out {};
-		auto inputSubRange = scn::ranges::subrange {input};
 
-		while (auto result = scn::scan<Rep, std::string>(inputSubRange, "{}{:[a-z]}")) {
-			const auto & [count, chars] = result->values();
+		while (!std::ranges::all_of(input, ::isspace)) {
+			using namespace WebStat::string_view_stream_helpers;
+			Rep count;
+			std::string_view unitChars;
+			input >> count >> unitChars % ::isalpha;
 			if (auto unit = std::ranges::find(
-						DURATION_UNITS, chars, &std::decay_t<decltype(*DURATION_UNITS.begin())>::second);
+						DURATION_UNITS, unitChars, &std::decay_t<decltype(*DURATION_UNITS.begin())>::second);
 					unit != DURATION_UNITS.end()) {
 				unit->first(out, count);
 			}
-			inputSubRange = result->range();
 		}
 
 		return out;

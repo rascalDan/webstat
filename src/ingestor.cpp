@@ -1,5 +1,6 @@
 #include "ingestor.hpp"
 #include "sql.hpp"
+#include "string_view_stream.hpp"
 #include "uaLookup.hpp"
 #include "util.hpp"
 #include <connection.h>
@@ -10,7 +11,6 @@
 #include <modifycommand.h>
 #include <print>
 #include <ranges>
-#include <scn/scan.h>
 #include <selectcommand.h>
 #include <selectcommandUtil.impl.h>
 #include <syslog.h>
@@ -185,21 +185,19 @@ namespace WebStat {
 	Ingestor::ScanResult
 	Ingestor::scanLogLine(std::string_view input)
 	{
-		return scn::scan< // Field : Apache format specifier : example
-				std::string_view, // virtual_host : %V : some.host.name
-				std::string_view, // remoteip : %a : 1.2.3.4 (or ipv6)
-				uint64_t, // request_time : %{usec}t : 123456790
-				std::string_view, // method : %m : GET
-				QuotedString, // path : "%u" : "/foo/bar"
-				QueryString, // query_string : "%q" : "?query=string" or ""
-				std::string_view, // protocol : %r : HTTPS/2.0
-				uint16_t, // status : %>s : 200
-				uint64_t, // size (bytes) : %B : 1234
-				uint64_t, // duration (µs) : %D : 1234
-				CLFString, // referrer : "%{Referer}i" : "https://google.com/whatever" or "-"
-				CLFString, // user_agent : "%{User-agent}i" : "Chromium v123.4" or "-"
-				CLFString // content_type : "%{Content-type}o" : "test/plain" or "-"
-				>(input, R"({} {} {} {:[A-Z]} {} {} {} {} {} {} {} {} {})");
+		using namespace string_view_stream_helpers;
+		try {
+			ScanValues out;
+			std::apply(
+					[&input](auto &... fields) {
+						(input >> ... >> fields);
+					},
+					out);
+			return out;
+		}
+		catch (const std::invalid_argument & err) {
+			return std::unexpected(err);
+		}
 	}
 
 	auto
@@ -374,7 +372,7 @@ namespace WebStat {
 				try {
 					DB::TransactionScope lineTx {*dbconn};
 					if (auto result = scanLogLine(line)) {
-						auto values = hashScanValues(result->values());
+						auto values = hashScanValues(*result);
 						auto valuesEntities = entities(values);
 						fillKnownEntities(valuesEntities);
 						storeNewEntities(dbconn, valuesEntities);
@@ -449,7 +447,7 @@ namespace WebStat {
 			}
 			if (auto result = scanLogLine(line)) {
 				stats.linesParsed++;
-				auto values = hashScanValues(result->values());
+				auto values = hashScanValues(*result);
 				auto valuesEntities = entities(values);
 				fillKnownEntities(valuesEntities);
 				try {
@@ -580,7 +578,7 @@ namespace WebStat {
 	{
 		for (auto pathIter = std::filesystem::directory_iterator {settings.fallbackDir};
 				pathIter != std::filesystem::directory_iterator {}; ++pathIter) {
-			if (scn::scan<std::string>(pathIter->path().filename().string(), "parked-{:[a-zA-Z0-9]}.log")) {
+			if (ctre::match<R"(^parked-[a-zA-Z0-9]+.log$)">(pathIter->path().filename().string())) {
 				return [lines = jobReadParkedLines(pathIter->path()), this, path = pathIter->path()]() mutable {
 					auto count = lines.size();
 					queuedLines.append_range(std::move(lines));
