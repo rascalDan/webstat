@@ -1,11 +1,8 @@
-#define BOOST_TEST_MODULE ingest
+#define BOOST_TEST_MODULE util
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
 
 #include <util.hpp>
-
-namespace WebStat {
-}
 
 using DurationParserData = std::tuple<std::string_view, std::chrono::milliseconds>;
 
