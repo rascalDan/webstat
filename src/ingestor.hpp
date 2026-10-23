@@ -9,7 +9,6 @@
 #include <expected>
 #include <future>
 #include <map>
-#include <scn/scan.h>
 #include <span>
 #include <sys/utsname.h>
 
@@ -61,11 +60,22 @@ namespace WebStat {
 		virtual ~Ingestor();
 		SPECIAL_MEMBERS_DELETE(Ingestor);
 
-		using ScanResult
-				= decltype(scn::scan<std::string_view, std::string_view, uint64_t, std::string_view, QuotedString,
-						QueryString, std::string_view, uint16_t, uint64_t, uint64_t, CLFString, CLFString, CLFString>(
-						std::declval<std::string_view>(), ""));
-		using ScanValues = std::remove_cvref_t<decltype(std::declval<WebStat::Ingestor::ScanResult>()->values())>;
+		using ScanValues = std::tuple< // Field : Apache format specifier : example
+				std::string_view, // virtual_host : %V : some.host.name
+				std::string_view, // remoteip : %a : 1.2.3.4 (or ipv6)
+				uint64_t, // request_time : %{usec}t : 123456790
+				std::string_view, // method : %m : GET
+				QuotedString, // path : "%u" : "/foo/bar"
+				QueryString, // query_string : "%q" : "?query=string" or ""
+				std::string_view, // protocol : %r : HTTPS/2.0
+				uint16_t, // status : %>s : 200
+				uint64_t, // size (bytes) : %B : 1234
+				uint64_t, // duration (µs) : %D : 1234
+				CLFString, // referrer : "%{Referer}i" : "https://google.com/whatever" or "-"
+				CLFString, // user_agent : "%{User-agent}i" : "Chromium v123.4" or "-"
+				CLFString // content_type : "%{Content-type}o" : "test/plain" or "-"
+				>;
+		using ScanResult = std::expected<ScanValues, std::invalid_argument>;
 		using ReferrerUri = std::tuple<std::string, // scheme
 				Entity, // host
 				Entity, // path

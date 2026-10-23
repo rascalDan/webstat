@@ -1,96 +1,113 @@
 #include "logTypes.hpp"
+#include "string_view_stream.hpp"
+#include <algorithm>
+#include <stdexcept>
 
-namespace {
+namespace WebStat {
 	namespace {
-		constexpr auto BS_MAP = []() {
-			std::array<char, 'v' + 1> map {};
-			map.at('b') = '\b';
-			map.at('f') = '\f';
-			map.at('n') = '\n';
-			map.at('r') = '\r';
-			map.at('t') = '\t';
-			map.at('v') = '\v';
-			map.at('"') = '"';
-			map.at('\\') = '\\';
-			return map;
-		}();
+		using namespace string_view_stream_helpers::detail;
 
-		scn::scan_expected<scn::ContextType::iterator>
-		parseEscapedString(std::string & value, scn::ContextType & ctx, const auto & start)
+		using CharMapping = std::pair<char, char>;
+		constexpr std::array<CharMapping, 8> BS_MAP = {
+				{
+						{'"', '"'},
+						{'\\', '\\'},
+						{'b', '\b'},
+						{'f', '\f'},
+						{'n', '\n'},
+						{'r', '\r'},
+						{'t', '\t'},
+						{'v', '\v'},
+				},
+		};
+		static_assert(std::ranges::is_sorted(BS_MAP), "Mapped escape chars is not sorted");
+
+		std::string_view &
+		parseEscapedString(std::string_view & input, std::string & out)
 		{
-			ctx.advance_to(start->begin());
-			while (true) {
-				if (auto closeQuote = scn::scan<>(ctx.range(), R"(")")) {
-					return closeQuote->begin();
-				}
-				if (auto plain = scn::scan<std::string>(ctx.range(), R"({:[^\"]})")) {
-					value.append(plain->value());
-					ctx.advance_to(plain->begin());
-				}
-				else if (auto hex = scn::scan<unsigned char>(ctx.range(), R"HEX(\x{:.2x})HEX")) {
-					value.append(1, static_cast<char>(hex->value()));
-					ctx.advance_to(hex->begin());
-				}
-				else if (auto escaped = scn::scan<std::string>(ctx.range(), R"ESC(\{:.1[bfnrtv"\]})ESC")) {
-					value.append(1, BS_MAP.at(static_cast<unsigned char>(escaped->value().front())));
-					ctx.advance_to(escaped->begin());
-				}
-				else {
-					return scn::unexpected(start.error());
-				}
+			auto getNextSignificantChar = [&input]() {
+				return input.find_first_of(R"(\")");
+			};
+			if (const auto significantChar = getNextSignificantChar(); significantChar == std::string_view::npos) {
+				throw std::invalid_argument {"No closing double quote"};
 			}
-			return scn::unexpected(start.error());
+			else if (input[significantChar] == '"') {
+				// The simple case which contains no escaped characters
+				out = std::string {input.substr(0, significantChar)};
+				input.remove_prefix(significantChar);
+				requireNext(input, '"');
+				return input;
+			}
+
+			while (!input.empty()) {
+				const auto significantChar = getNextSignificantChar();
+				if (significantChar == std::string_view::npos) {
+					throw std::invalid_argument {"No closing double quote"};
+				}
+				out.append(input.substr(0, significantChar));
+				input.remove_prefix(significantChar);
+				if (nextIs(input, '"')) {
+					return input;
+				}
+				if (nextIs(input, '\\')) {
+					if (nextIs(input, 'x')) {
+						const auto digits = requireWhile(input, ::isxdigit, 2);
+						if (uint8_t hex = 0;
+								std::from_chars(digits.begin(), digits.end(), hex, 16).ec == std::errc {}) {
+							out.append(1, static_cast<char>(hex));
+							continue;
+						}
+						throw std::invalid_argument {"Unparsable hex data"};
+					}
+					if (const auto mapped = std::ranges::lower_bound(BS_MAP, input.front(), {}, &CharMapping::first);
+							mapped != BS_MAP.end()) {
+						input.remove_prefix(1);
+						out.append(1, mapped->second);
+						continue;
+					}
+					throw std::invalid_argument {"Invalid escape sequence"};
+				}
+				throw std::logic_error {"Unexpected next significant char"};
+			}
+			throw std::invalid_argument {"Never found closing double quote"};
 		}
 	}
-}
 
-namespace scn {
-	scan_expected<ContextType::iterator>
-	scanner<WebStat::QuotedString>::scan(WebStat::QuotedString & value, ContextType & ctx)
+	std::string_view &
+	operator>>(std::string_view & input, CLFString & out)
 	{
-		if (auto empty = scn::scan<>(ctx.range(), R"("")")) {
-			return empty->begin();
+		using namespace string_view_stream_helpers::detail;
+		discardWhile(input, isspace);
+		requireNext(input, '"');
+		if (nextIs(input, '-') && nextIs(input, '"')) {
+			// CLF null indicator
+			out.reset();
+			return input;
 		}
-
-		auto simple = scn::scan<std::string>(ctx.range(), R"("{:[^\"]}")");
-		if (simple) {
-			value = std::move(simple->value());
-			return simple->begin();
-		}
-
-		if (auto openQuote = scn::scan<>(ctx.range(), R"(")")) {
-			return parseEscapedString(value, ctx, openQuote);
-		}
-		return unexpected(simple.error());
+		return parseEscapedString(input, out.emplace());
 	}
 
-	scan_expected<ContextType::iterator>
-	scanner<WebStat::QueryString>::scan(WebStat::QueryString & value, ContextType & ctx)
+	std::string_view &
+	operator>>(std::string_view & input, QueryString & out)
 	{
-		if (auto null = scn::scan<>(ctx.range(), R"("")")) {
-			return null->begin();
+		using namespace string_view_stream_helpers::detail;
+		discardWhile(input, isspace);
+		requireNext(input, '"');
+		if (nextIs(input, '"')) {
+			// Query string is empty => null
+			out.reset();
+			return input;
 		}
-
-		auto empty = scn::scan<>(ctx.range(), R"("?")");
-		if (empty) {
-			value.emplace();
-			return empty->begin();
-		}
-
-		if (auto openQuoteQM = scn::scan<>(ctx.range(), R"("?)")) {
-			value.emplace();
-			return parseEscapedString(*value, ctx, openQuoteQM);
-		}
-		return unexpected(empty.error());
+		requireNext(input, '?');
+		return parseEscapedString(input, out.emplace());
 	}
 
-	scan_expected<ContextType::iterator>
-	scanner<WebStat::CLFString>::scan(WebStat::CLFString & value, ContextType & ctx)
+	std::string_view &
+	operator>>(std::string_view & input, QuotedString & out)
 	{
-		if (auto null = scn::scan<>(ctx.range(), R"("-")")) {
-			return null->begin();
-		}
-
-		return scn::scanner<WebStat::QuotedString>::scan(value.emplace(), ctx);
+		using namespace string_view_stream_helpers::detail;
+		discardWhile(input, isspace);
+		requireNext(input, '"');
+		return parseEscapedString(input, out);
 	}
 }

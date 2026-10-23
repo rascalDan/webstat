@@ -134,9 +134,10 @@ BOOST_DATA_TEST_CASE(QuotedStringsGood,
 		}),
 		input, expected)
 {
-	const auto result = scn::scan<WebStat::QuotedString>(input, "{}");
-	BOOST_REQUIRE(result);
-	BOOST_CHECK_EQUAL(result->value(), expected);
+	WebStat::QuotedString result;
+	auto strm {input};
+	BOOST_REQUIRE_NO_THROW(strm >> result);
+	BOOST_CHECK_EQUAL(result, expected);
 }
 
 BOOST_DATA_TEST_CASE(QuotedStringsBad,
@@ -148,7 +149,9 @@ BOOST_DATA_TEST_CASE(QuotedStringsBad,
 		}),
 		input)
 {
-	BOOST_REQUIRE(!scn::scan<WebStat::QuotedString>(input, "{}"));
+	QuotedString out;
+	auto strm {input};
+	BOOST_REQUIRE_THROW(strm >> out, std::invalid_argument);
 }
 
 BOOST_DATA_TEST_CASE(QueryStringsGood,
@@ -194,9 +197,10 @@ BOOST_DATA_TEST_CASE(QueryStringsGood,
 		}),
 		input, expected)
 {
-	const auto result = scn::scan<WebStat::QueryString>(input, "{}");
-	BOOST_REQUIRE(result);
-	BOOST_CHECK_EQUAL(result->value(), expected);
+	WebStat::QueryString result;
+	auto strm {input};
+	BOOST_REQUIRE_NO_THROW(strm >> result);
+	BOOST_CHECK_EQUAL(result, expected);
 }
 
 BOOST_DATA_TEST_CASE(QueryStringsBad,
@@ -210,7 +214,9 @@ BOOST_DATA_TEST_CASE(QueryStringsBad,
 		}),
 		input)
 {
-	BOOST_REQUIRE(!scn::scan<WebStat::QueryString>(input, "{}"));
+	WebStat::QueryString result;
+	auto strm {input};
+	BOOST_REQUIRE_THROW(strm >> result, std::invalid_argument);
 }
 
 BOOST_TEST_DECORATOR(*boost::unit_test::timeout(1))
@@ -228,9 +234,10 @@ BOOST_DATA_TEST_CASE(CLFStringsGood,
 		}),
 		input, expected)
 {
-	const auto result = scn::scan<WebStat::CLFString>(input, "{}");
-	BOOST_REQUIRE(result);
-	BOOST_CHECK_EQUAL(result->value(), expected);
+	WebStat::CLFString result;
+	auto strm {input};
+	BOOST_REQUIRE_NO_THROW(strm >> result);
+	BOOST_CHECK_EQUAL(result, expected);
 }
 
 BOOST_DATA_TEST_CASE(CLFStringsBad,
@@ -242,7 +249,9 @@ BOOST_DATA_TEST_CASE(CLFStringsBad,
 		}),
 		input)
 {
-	BOOST_REQUIRE(!scn::scan<WebStat::CLFString>(input, "{}"));
+	WebStat::QueryString result;
+	auto strm {input};
+	BOOST_REQUIRE_THROW(strm >> result, std::invalid_argument);
 }
 
 constexpr std::string_view LOGLINE1
@@ -276,7 +285,7 @@ BOOST_DATA_TEST_CASE(ExtractFields,
 {
 	const auto result = WebStat::Ingestor::scanLogLine(input);
 	BOOST_REQUIRE(result);
-	BOOST_CHECK_EQUAL(result->values(), expected);
+	BOOST_CHECK_EQUAL(*result, expected);
 }
 
 BOOST_AUTO_TEST_CASE(ExtractFieldsEdgeCasesUnparsable3580673700)
@@ -284,7 +293,7 @@ BOOST_AUTO_TEST_CASE(ExtractFieldsEdgeCasesUnparsable3580673700)
 	const auto result = WebStat::Ingestor::scanLogLine(
 			R"LOG(gentoobrowse.randomdan.homeip.net 5.183.129.58 1759960912510520 GET "/packages/dev-php/pecl-uploadprogress(),')\"((,," "" HTTP/1.1 404 0 10051 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" "-")LOG");
 	BOOST_REQUIRE(result);
-	BOOST_CHECK_EQUAL(std::get<4>(result->values()), R"LOG(/packages/dev-php/pecl-uploadprogress(),')"((,,)LOG");
+	BOOST_CHECK_EQUAL(std::get<4>(*result), R"LOG(/packages/dev-php/pecl-uploadprogress(),')"((,,)LOG");
 }
 
 BOOST_AUTO_TEST_CASE(ExtractFieldsEdgeCasesUnparsable3603068405)
@@ -292,7 +301,7 @@ BOOST_AUTO_TEST_CASE(ExtractFieldsEdgeCasesUnparsable3603068405)
 	const auto result = WebStat::Ingestor::scanLogLine(
 			R"LOG(gentoobrowse.randomdan.homeip.net 5.183.129.58 1759960912705682 GET "/packages/dev-php/pecl-uploadprogress'yqFSRA<'\">yuezhx" "" HTTP/1.1 404 0 19143 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" "-")LOG");
 	BOOST_REQUIRE(result);
-	BOOST_CHECK_EQUAL(std::get<4>(result->values()), R"LOG(/packages/dev-php/pecl-uploadprogress'yqFSRA<'">yuezhx)LOG");
+	BOOST_CHECK_EQUAL(std::get<4>(*result), R"LOG(/packages/dev-php/pecl-uploadprogress'yqFSRA<'">yuezhx)LOG");
 }
 
 BOOST_AUTO_TEST_CASE(ExtractFieldsEdgeCasesUnparsable3482917779)
@@ -300,7 +309,7 @@ BOOST_AUTO_TEST_CASE(ExtractFieldsEdgeCasesUnparsable3482917779)
 	const auto result = WebStat::Ingestor::scanLogLine(
 			R"LOG(195.166.151.214 62.171.174.195 1774536220216585 GET "/index.php" "?lang=../../../../../../../../usr/local/lib/php/pearcmd&+config-create+/&/<?echo(md5(\"hi\"));?>+/tmp/index1.php" HTTP/1.1 404 376 5811 "-" "libredtail-http" "text/html")LOG");
 	BOOST_REQUIRE(result);
-	const auto queryString = std::get<5>(result->values());
+	const auto queryString = std::get<5>(*result);
 	BOOST_REQUIRE(queryString);
 	BOOST_CHECK_EQUAL(*queryString,
 			R"LOG(lang=../../../../../../../../usr/local/lib/php/pearcmd&+config-create+/&/<?echo(md5("hi"));?>+/tmp/index1.php)LOG");
@@ -311,7 +320,7 @@ BOOST_AUTO_TEST_CASE(ExtractFieldsEdgeCasesUnparsable3354288) // Long duration
 	const auto result = WebStat::Ingestor::scanLogLine(
 			R"LOG(git.randomdan.homeip.net 216.73.216.212 1770062062011035 GET "/repo/netfs/patch/libfusepp" "?id=46f6aa3507120f4b69a54abc02d8829eac005b6f" HTTP/2.0 200 1 7361204168 "-" "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; ClaudeBot/1.0; +claudebot@anthropic.com)" "text/plain")LOG");
 	BOOST_REQUIRE(result);
-	const auto duration = std::get<9>(result->values());
+	const auto duration = std::get<9>(*result);
 	BOOST_CHECK_EQUAL(7361204168, duration);
 }
 
