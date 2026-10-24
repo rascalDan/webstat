@@ -54,7 +54,7 @@ namespace WebStat {
 			std::optional<std::future<Result>> currentRun;
 		};
 
-		Ingestor(IngestorSettings);
+		explicit Ingestor(IngestorSettings);
 		Ingestor(DB::ConnectionPoolPtr, IngestorSettings);
 
 		virtual ~Ingestor();

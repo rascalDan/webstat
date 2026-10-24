@@ -25,13 +25,13 @@ namespace WebStat {
 
 		// This applies to cin, cout, and cerr when not synced with stdio:
 		if constexpr (!std::is_base_of_v<FileBuf, StdioFileBuf>) {
-			if (auto * fbuf = dynamic_cast<StdioFileBuf *>(stream.rdbuf())) {
+			if (const auto * fbuf = dynamic_cast<StdioFileBuf *>(stream.rdbuf())) {
 				return fbuf->native_handle();
 			}
 		}
 
 		// This applies to filestreams:
-		if (auto * bbuf = dynamic_cast<FileBuf *>(stream.rdbuf())) {
+		if (const auto * bbuf = dynamic_cast<FileBuf *>(stream.rdbuf())) {
 			return bbuf->native_handle();
 		}
 

@@ -5,6 +5,8 @@
 
 namespace WebStat {
 	namespace {
+		constexpr int HEX_WIDTH = 2;
+		constexpr int HEX_BASE = 16;
 		using namespace string_view_stream_helpers::detail;
 
 		using CharMapping = std::pair<char, char>;
@@ -25,35 +27,25 @@ namespace WebStat {
 		std::string_view &
 		parseEscapedString(std::string_view & input, std::string & out)
 		{
-			auto getNextSignificantChar = [&input]() {
-				return input.find_first_of(R"(\")");
+			const auto getNextSignificantChar = [&input] {
+				return std::ranges::find_first_of(input, R"(\")");
 			};
-			if (const auto significantChar = getNextSignificantChar(); significantChar == std::string_view::npos) {
-				throw std::invalid_argument {"No closing double quote"};
-			}
-			else if (input[significantChar] == '"') {
-				// The simple case which contains no escaped characters
-				out = std::string {input.substr(0, significantChar)};
-				input.remove_prefix(significantChar);
-				requireNext(input, '"');
-				return input;
-			}
 
 			while (!input.empty()) {
 				const auto significantChar = getNextSignificantChar();
-				if (significantChar == std::string_view::npos) {
+				if (significantChar == input.end()) {
 					throw std::invalid_argument {"No closing double quote"};
 				}
-				out.append(input.substr(0, significantChar));
-				input.remove_prefix(significantChar);
+				out.append(input.begin(), significantChar);
+				input = {significantChar, input.end()};
 				if (nextIs(input, '"')) {
 					return input;
 				}
 				if (nextIs(input, '\\')) {
 					if (nextIs(input, 'x')) {
-						const auto digits = requireWhile(input, ::isxdigit, 2);
+						const auto digits = requireWhile(input, ::isxdigit, HEX_WIDTH, HEX_WIDTH);
 						if (uint8_t hex = 0;
-								std::from_chars(digits.begin(), digits.end(), hex, 16).ec == std::errc {}) {
+								std::from_chars(digits.begin(), digits.end(), hex, HEX_BASE).ec == std::errc {}) {
 							out.append(1, static_cast<char>(hex));
 							continue;
 						}

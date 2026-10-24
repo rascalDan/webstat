@@ -1,5 +1,4 @@
 #include "sql.hpp"
-#include <command.h>
 #include <dbpp-postgresql/pq-command.h>
 
 namespace WebStat::SQL {
@@ -7,6 +6,7 @@ namespace WebStat::SQL {
 	// https://github.com/ccache/ccache/issues/1540
 	// ccache:disable
 
+	// NOLINTBEGIN(bugprone-throwing-static-initialization,clang-diagnostic-c23-extensions)
 	const std::string ACCESS_LOG_INSERT {
 #embed "sql/accessLogInsert.sql"
 	};
@@ -64,4 +64,5 @@ namespace WebStat::SQL {
 	HASH_OPTS(MARK_ENTITY_RETRIED);
 	HASH_OPTS(SET_ENTITY_TYPE);
 #undef HASH_OPTS
+	// NOLINTEND(bugprone-throwing-static-initialization,clang-diagnostic-c23-extensions)
 }

@@ -5,17 +5,15 @@
 #include "util.hpp"
 #include <connection.h>
 #include <csignal>
-#include <ctre.hpp>
-#include <dbTypes.h>
+#include <ctre.hpp> // IWYU pragma: keep
 #include <fstream>
 #include <modifycommand.h>
 #include <print>
 #include <ranges>
 #include <selectcommand.h>
-#include <selectcommandUtil.impl.h>
+#include <selectcommandUtil.impl.h> // IWYU pragma: keep
 #include <syslog.h>
 #include <utility>
-#include <zlib.h>
 
 namespace DB {
 	template<>
@@ -29,6 +27,8 @@ namespace DB {
 
 namespace WebStat {
 	namespace {
+		using CurlTimeOutT = std::chrono::duration<int, std::milli>;
+
 		constexpr auto TO_HEX_RANGE = std::views::transform([](auto byte) {
 			constexpr auto HEXN = 16ZU;
 			return std::array {byte / HEXN, byte % HEXN};
@@ -93,11 +93,9 @@ namespace WebStat {
 		T
 		insert(auto && dbconn, const std::string & sql, const DB::CommandOptionsPtr & opts, Binds &&... binds)
 		{
-			auto ins = dbconn->select(sql, opts);
+			const auto ins = dbconn->select(sql, opts);
 			bindMany(ins, 0, std::forward<Binds>(binds)...);
-			if (ins->fetch()) {
-				T out;
-				(*ins)[0] >> out;
+			for (const auto & [out] : ins->template as<T>()) {
 				return out;
 			}
 			throw DB::NoRowsAffected {};
@@ -108,7 +106,7 @@ namespace WebStat {
 		std::tuple<Fields...>
 		insert(auto && dbconn, const std::string & sql, const DB::CommandOptionsPtr & opts, Binds &&... binds)
 		{
-			DB::SelectCommandPtr ins = dbconn->select(sql, opts);
+			const auto ins = dbconn->select(sql, opts);
 			bindMany(ins, 0, std::forward<Binds>(binds)...);
 			for (auto row : ins->template as<Fields...>()) {
 				return [&row]<std::unsigned_integral T, T... N>(std::integer_sequence<T, N...>) {
@@ -203,14 +201,14 @@ namespace WebStat {
 	auto
 	Ingestor::withCurlLock(auto &&... operation)
 	{
-		std::lock_guard curlOperationsLock {curlOperationsMutex};
+		const std::scoped_lock curlOperationsLock {curlOperationsMutex};
 		return std::invoke(std::forward<decltype(operation)>(operation)...);
 	}
 
 	bool
 	Ingestor::haveCurlOperations()
 	{
-		return withCurlLock([this]() {
+		return withCurlLock([this] {
 			return !curlOperations.empty();
 		});
 	}
@@ -230,7 +228,7 @@ namespace WebStat {
 		while (auto msg = withCurlLock(curl_multi_info_read, curl.get(), &remaining)) {
 			if (msg->msg == CURLMSG_DONE) {
 				const auto result = msg->data.result;
-				if (auto operation = withCurlLock([this, handle = msg->easy_handle]() {
+				if (const auto operation = withCurlLock([this, handle = msg->easy_handle] {
 						curl_multi_remove_handle(curl.get(), handle);
 						return curlOperations.extract(handle);
 					})) {
@@ -242,7 +240,7 @@ namespace WebStat {
 				}
 			}
 		}
-		return []() {
+		return [] {
 			return 0;
 		};
 	}
@@ -252,7 +250,6 @@ namespace WebStat {
 	{
 		curl_waitfd logIn {.fd = fileno(input), .events = CURL_WAIT_POLLIN, .revents = 0};
 
-		using CurlTimeOutT = std::chrono::duration<int, std::milli>;
 		const CurlTimeOutT curlTimeOut = settings.checkJobsAfter;
 		while (!terminated && curl_multi_poll(curl.get(), &logIn, 1, curlTimeOut.count(), nullptr) == CURLM_OK) {
 			if (logIn.revents) {
@@ -299,10 +296,11 @@ namespace WebStat {
 	void
 	Ingestor::finishCurlOperations()
 	{
-		withCurlLock([this]() {
+		static constexpr CurlTimeOutT LOOP_WAIT = std::chrono::seconds {1};
+		withCurlLock([this] {
 			if (!curlOperations.empty()) {
 				int running = -1;
-				while (running && curl_multi_poll(curl.get(), nullptr, 0, 500, &running) == CURLM_OK) {
+				while (running && curl_multi_poll(curl.get(), nullptr, 0, LOOP_WAIT.count(), &running) == CURLM_OK) {
 					curl_multi_perform(curl.get(), nullptr);
 				}
 			}
@@ -339,9 +337,9 @@ namespace WebStat {
 			log(LOG_ERR, "Unhandled exception: %s, clearing known entity list", excp.what());
 			existingEntities()->clear();
 		}
-		auto count = std::distance(processingLines.begin(), storedEnd);
+		const auto count = std::distance(processingLines.begin(), storedEnd);
 		processingLines.erase(processingLines.begin(), storedEnd);
-		return [count]() {
+		return [count] {
 			return count;
 		};
 	}
@@ -353,24 +351,24 @@ namespace WebStat {
 	Ingestor::Job::Result
 	Ingestor::jobRetryUninsertableLines()
 	{
-		auto dbh = dbpool->get();
+		const auto dbh = dbpool->get();
 		auto dbconn = dbh.get();
-		auto lineSelect = dbconn->select(SQL::SELECT_UNINSERTABLE, SQL::SELECT_UNINSERTABLE_OPTS);
+		const auto lineSelect = dbconn->select(SQL::SELECT_UNINSERTABLE, SQL::SELECT_UNINSERTABLE_OPTS);
 		lineSelect->bindParamI(0, settings.maxBatchSize);
-		auto markLineRetried = dbconn->modify(SQL::MARK_ENTITY_RETRIED, SQL::MARK_ENTITY_RETRIED_OPTS);
-		auto deleteLine = dbconn->modify(SQL::DELETE_ENTITY, SQL::DELETE_ENTITY_OPTS);
-		auto setEntityUnparsable = dbconn->modify(SQL::SET_ENTITY_TYPE, SQL::SET_ENTITY_TYPE_OPTS);
+		const auto markLineRetried = dbconn->modify(SQL::MARK_ENTITY_RETRIED, SQL::MARK_ENTITY_RETRIED_OPTS);
+		const auto deleteLine = dbconn->modify(SQL::DELETE_ENTITY, SQL::DELETE_ENTITY_OPTS);
+		const auto setEntityUnparsable = dbconn->modify(SQL::SET_ENTITY_TYPE, SQL::SET_ENTITY_TYPE_OPTS);
 		setEntityUnparsable->bindParamS(0, "unparsable_line");
-		auto insert = dbconn->modify(SQL::ACCESS_LOG_INSERT, SQL::ACCESS_LOG_INSERT_OPTS);
+		const auto insert = dbconn->modify(SQL::ACCESS_LOG_INSERT, SQL::ACCESS_LOG_INSERT_OPTS);
 
 		unsigned int stored = 0;
 		while (!terminated) {
 			unsigned int batchSize = 0;
-			DB::TransactionScope batchTx {*dbconn};
+			const DB::TransactionScope batchTx {*dbconn};
 			for (auto [id, line, originalHostnameId] : lineSelect->as<EntityId, std::string, EntityId>()) {
 				batchSize += 1;
 				try {
-					DB::TransactionScope lineTx {*dbconn};
+					const DB::TransactionScope lineTx {*dbconn};
 					if (auto result = scanLogLine(line)) {
 						auto values = hashScanValues(*result);
 						auto valuesEntities = entities(values);
@@ -399,7 +397,7 @@ namespace WebStat {
 				break;
 			}
 		}
-		return [stored]() {
+		return [stored] {
 			return stored;
 		};
 	}
@@ -436,10 +434,10 @@ namespace WebStat {
 	void
 	Ingestor::ingestLogLines(DB::Connection * dbconn, const LinesView lines)
 	{
-		DB::TransactionScope batchTx {*dbconn};
+		const DB::TransactionScope batchTx {*dbconn};
 		stats.batchesStarted++;
 		const auto hostnameId = getHostnameId(dbconn);
-		auto insert = dbconn->modify(SQL::ACCESS_LOG_INSERT, SQL::ACCESS_LOG_INSERT_OPTS);
+		const auto insert = dbconn->modify(SQL::ACCESS_LOG_INSERT, SQL::ACCESS_LOG_INSERT_OPTS);
 		insert->bindParam(0, hostnameId);
 		for (const auto & line : lines) {
 			if (terminated) {
@@ -465,7 +463,7 @@ namespace WebStat {
 						throw;
 					}
 					try {
-						DB::TransactionScope lineTx {*dbconn};
+						const DB::TransactionScope lineTx {*dbconn};
 						const auto uninsertableLineId = storeUninsertableLine(dbconn, hostnameId, line, originalError);
 						log(LOG_NOTICE,
 								"Failed to store parsed line and/or associated entties, but did store raw line, %u:%s",
@@ -521,6 +519,9 @@ namespace WebStat {
 	void
 	Ingestor::finalizeJob(Job & job, const std::chrono::minutes freq, const Job::LastRunTime::clock::time_point now)
 	{
+		if (!job.currentRun) {
+			return;
+		}
 		try {
 			job.currentRun->get()();
 			job.lastRun = now;
@@ -542,10 +543,8 @@ namespace WebStat {
 				finalizeJob(job, freq, now);
 			}
 		}
-		else if (expired(job.lastRun, freq, now)) {
-			if (!job.cond || std::invoke(job.cond, this)) {
-				job.currentRun.emplace(std::async(std::launch::async, job.impl, this));
-			}
+		else if (expired(job.lastRun, freq, now) && (!job.cond || std::invoke(job.cond, this))) {
+			job.currentRun.emplace(std::async(std::launch::async, job.impl, this));
 		}
 	}
 
@@ -561,7 +560,7 @@ namespace WebStat {
 	void
 	Ingestor::finishAllJobs()
 	{
-		auto finishJob = [this, now = Job::LastRunTime::clock::now()](Job & job) {
+		const auto finishJob = [this, now = Job::LastRunTime::clock::now()](Job & job) {
 			if (job.currentRun) {
 				job.currentRun->wait();
 				finalizeJob(job, {}, now);
@@ -579,15 +578,15 @@ namespace WebStat {
 		for (auto pathIter = std::filesystem::directory_iterator {settings.fallbackDir};
 				pathIter != std::filesystem::directory_iterator {}; ++pathIter) {
 			if (ctre::match<R"(^parked-[a-zA-Z0-9]+.log$)">(pathIter->path().filename().string())) {
-				return [lines = jobReadParkedLines(pathIter->path()), this, path = pathIter->path()]() mutable {
-					auto count = lines.size();
+				return [lines = jobReadParkedLines(pathIter->path()), this, path = pathIter->path()] mutable {
+					const auto count = lines.size();
 					queuedLines.append_range(std::move(lines));
 					unlink(path.c_str());
 					return count;
 				};
 			}
 		}
-		return []() {
+		return [] {
 			return 0;
 		};
 	}
@@ -599,7 +598,7 @@ namespace WebStat {
 		parked.exceptions(~std::ios::goodbit);
 		parked.open(path);
 		try {
-			const size_t count = [&parked]() {
+			const size_t count = [&parked] {
 				size_t countIn = 0;
 				parked >> countIn >> std::ws;
 				return countIn;
@@ -607,7 +606,7 @@ namespace WebStat {
 			return jobReadParkedLines(parked, count);
 		}
 		catch (...) {
-			auto failPath = auto {path}.replace_extension(".short");
+			const auto failPath = auto {path}.replace_extension(".short");
 			std::error_code renameErr;
 			if (std::filesystem::rename(path, failPath, renameErr); renameErr) {
 				log(LOG_WARNING, "Failed to rename failing parked file (%s -> %s) : %s", path.c_str(), failPath.c_str(),
@@ -634,7 +633,7 @@ namespace WebStat {
 	Ingestor::Job::Result
 	Ingestor::jobPurgeOldLogs()
 	{
-		auto dbconn = dbpool->get();
+		const auto dbconn = dbpool->get();
 		const auto purge = dbconn->modify(SQL::ACCESS_LOG_PURGE_OLD, SQL::ACCESS_LOG_PURGE_OLD_OPTS);
 		purge->bindParam(0, std::format("{} days", settings.purgeDaysToKeep));
 		purge->bindParam(1, settings.purgeDeleteMax);
@@ -647,7 +646,7 @@ namespace WebStat {
 			}
 			std::this_thread::sleep_for(settings.purgeDeletePause);
 		}
-		return [purgedTotal]() {
+		return [purgedTotal] {
 			return purgedTotal;
 		};
 	}
@@ -657,7 +656,7 @@ namespace WebStat {
 	{
 		auto lockedEntities = existingEntities.shared();
 		for (const auto entity : entities) {
-			if (auto existing = lockedEntities->find(entity->key); existing != lockedEntities->end()) {
+			if (const auto existing = lockedEntities->find(entity->key); existing != lockedEntities->end()) {
 				entity->id = existing->second;
 			}
 		}
@@ -675,6 +674,7 @@ namespace WebStat {
 	}
 
 	std::tuple<EntityId, bool>
+	// NOLINTNEXTLINE(readability-convert-member-functions-to-static) Must match signature for ENTITY_TYPE_VALUES
 	Ingestor::insertGenericEntity(DB::Connection * dbconn, Entity & entity, const std::string_view typeName) const
 	{
 		return insert<EntityId, bool>(dbconn, SQL::ENTITY_INSERT, SQL::ENTITY_INSERT_OPTS, entity.value, typeName);
@@ -683,11 +683,12 @@ namespace WebStat {
 	std::optional<Ingestor::ReferrerUri>
 	Ingestor::decomposeReferrer(const std::string_view uri)
 	{
+		constexpr size_t URL_COMPONENTS = 4;
 		// scheme ":" ["//" [userinfo "@"] host [":" port] ] path ["?" query] ["#" fragment]
 		if (const auto components = ctre::match<
 					R"REG(([a-zA-Z][a-zA-Z0-9+.\-]{0,7}):(?:\/\/(?:(?:[^ @]+)@)?([^ ?:\/]*)(?::(?:[0-9]+))?)([^ ?#]*)(?:\?([^ #]*))?(?:#(?:[^ ]*))?)REG">(
 					uri)) {
-			static_assert(decltype(components)::count() == 5);
+			static_assert(decltype(components)::count() == URL_COMPONENTS + 1);
 			return ReferrerUri {
 					{std::from_range, components.get<1>() | std::views::transform(::tolower)},
 					ToEntity<EntityType::VirtualHost> {}(components.get<2>()),
@@ -721,8 +722,9 @@ namespace WebStat {
 	{
 		using InsertHandler = EntityInsertResult (Ingestor::*)(DB::Connection *, Entity &, std::string_view) const;
 		using PostInsertHandler = void (Ingestor::*)(const Entity &) const;
-		static constexpr std::array<std::tuple<std::string_view, InsertHandler, PostInsertHandler>, 9>
-				ENTITY_TYPE_VALUES {{
+		using EntityHandlers = std::tuple<std::string_view, InsertHandler, PostInsertHandler>;
+		static constexpr std::array<EntityHandlers, 9> ENTITY_TYPE_VALUES {
+				{
 						{"host", &Ingestor::insertGenericEntity, nullptr},
 						{"virtual_host", &Ingestor::insertGenericEntity, nullptr},
 						{"path", &Ingestor::insertGenericEntity, nullptr},
@@ -732,10 +734,11 @@ namespace WebStat {
 						{"unparsable_line", &Ingestor::insertGenericEntity, nullptr},
 						{"uninsertable_line", &Ingestor::insertGenericEntity, nullptr},
 						{"content_type", &Ingestor::insertGenericEntity, nullptr},
-				}};
+				},
+		};
 
 		assert(!entity.id);
-		const auto & [typeName, insertHandler, onInsert] = ENTITY_TYPE_VALUES[std::to_underlying(entity.key.type)];
+		const auto & [typeName, insertHandler, onInsert] = ENTITY_TYPE_VALUES.at(std::to_underlying(entity.key.type));
 		bool entityNullDetail = true;
 		std::tie(entity.id, entityNullDetail) = std::invoke(insertHandler, this, dbconn, entity, typeName);
 		if (onInsert && entityNullDetail) {
@@ -762,10 +765,13 @@ namespace WebStat {
 	Ingestor::onNewUserAgent(const Entity & entity) const
 	{
 		const auto & [_, entityId, value] = entity;
+		if (!entityId) {
+			return;
+		}
 		auto curlOp = curlGetUserAgentDetail(*entityId, value, settings.userAgentAPI.c_str());
 		{
-			std::lock_guard curlOperationsLock {curlOperationsMutex};
-			auto added = curlOperations.emplace(curlOp->hnd.get(), std::move(curlOp));
+			const std::scoped_lock curlOperationsLock {curlOperationsMutex};
+			const auto added = curlOperations.emplace(curlOp->hnd.get(), std::move(curlOp));
 			curl_multi_add_handle(curl.get(), added.first->first);
 		}
 	}

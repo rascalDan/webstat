@@ -49,17 +49,19 @@ namespace WebStat {
 	std::chrono::duration<Rep, Period>
 	parseDuration(std::string_view input)
 	{
-		static constexpr std::initializer_list<
-				std::pair<void (*)(std::chrono::duration<Rep, Period> & subtotal, Rep value), std::string_view>>
-				DURATION_UNITS {
-						{detail::add<Rep, Period, std::chrono::milliseconds>, "ms"},
-						{detail::add<Rep, Period, std::chrono::seconds>, "s"},
-						{detail::add<Rep, Period, std::chrono::minutes>, "m"},
-						{detail::add<Rep, Period, std::chrono::hours>, "h"},
-						{detail::add<Rep, Period, std::chrono::days>, "d"},
-						{detail::add<Rep, Period, std::chrono::weeks>, "w"},
+		using Duration = std::chrono::duration<Rep, Period>;
+		using Adder = void (*)(Duration & subtotal, Rep value);
+		using DurationUnit = std::pair<Adder, std::string_view>;
+		static constexpr std::initializer_list<DurationUnit> DURATION_UNITS {
+				{detail::add<Rep, Period, std::chrono::milliseconds>, "ms"},
+				{detail::add<Rep, Period, std::chrono::seconds>, "s"},
+				{detail::add<Rep, Period, std::chrono::minutes>, "m"},
+				{detail::add<Rep, Period, std::chrono::hours>, "h"},
+				{detail::add<Rep, Period, std::chrono::days>, "d"},
+				{detail::add<Rep, Period, std::chrono::weeks>, "w"},
 		};
 
+		// NOLINTNEXTLINE(misc-const-correctness)
 		std::chrono::duration<Rep, Period> out {};
 
 		while (!std::ranges::all_of(input, ::isspace)) {
@@ -67,8 +69,7 @@ namespace WebStat {
 			Rep count;
 			std::string_view unitChars;
 			input >> count >> unitChars % ::isalpha;
-			if (auto unit = std::ranges::find(
-						DURATION_UNITS, unitChars, &std::decay_t<decltype(*DURATION_UNITS.begin())>::second);
+			if (auto unit = std::ranges::find(DURATION_UNITS, unitChars, &DurationUnit::second);
 					unit != DURATION_UNITS.end()) {
 				unit->first(out, count);
 			}
@@ -99,7 +100,7 @@ namespace WebStat {
 
 	template<typename ValueType, typename MutexType = std::shared_mutex> class ThreadSafeT {
 	public:
-		template<typename... P> ThreadSafeT(P &&... params) : value {std::forward<P>(params)...} { }
+		template<typename... P> explicit ThreadSafeT(P &&... params) : value {std::forward<P>(params)...} { }
 
 		template<typename LockedValueType, typename LockType> class Locked {
 		public:

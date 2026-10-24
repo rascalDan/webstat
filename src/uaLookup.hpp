@@ -9,7 +9,7 @@
 namespace WebStat {
 	class UserAgentLookupOperation : public CurlOperation {
 	public:
-		UserAgentLookupOperation(EntityId entityId);
+		explicit UserAgentLookupOperation(EntityId entityId);
 
 		void whenComplete(DB::Connection *) const override;
 

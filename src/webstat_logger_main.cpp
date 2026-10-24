@@ -1,10 +1,11 @@
 #include "ingestor.hpp"
 #include "util.hpp"
-#include <boost/program_options.hpp>
+#include <boost/program_options/options_description.hpp>
+#include <boost/program_options/parsers.hpp>
+#include <boost/program_options/variables_map.hpp>
 #include <flat_map>
 #include <format>
 #include <iostream>
-#include <pq-connection.h>
 #include <sys/utsname.h>
 #include <syslog.h>
 
@@ -12,7 +13,10 @@ namespace {
 	class MainIngestor : public WebStat::Ingestor {
 		using Ingestor::Ingestor;
 
+	protected:
+		[[gnu::format(printf, 3, 4)]]
 		void
+		// NOLINTNEXTLINE(modernize-avoid-variadic-functions)
 		log(int level, const char * msgfmt, ...) const override
 		{
 			va_list args;
@@ -42,7 +46,7 @@ namespace {
 		};
 		if (const auto job = jobs.find(jobName); job != jobs.end()) {
 			std::println(std::cout, "Running job {}...", jobName);
-			const auto result = (ingestor.*(job->second))()();
+			const auto result = (ingestor.*job->second)()();
 			std::println(std::cout, "Result: {}", result);
 			return EXIT_SUCCESS;
 		}
@@ -66,7 +70,8 @@ LEXICAL_CAST_DURATION(weeks);
 #undef LEXICAL_CAST_DURATION
 
 int
-main(int argc, char ** argv)
+// NOLINTNEXTLINE(bugprone-exception-escape)
+main(int argc, char * const * argv)
 {
 	namespace po = boost::program_options;
 	po::options_description opts("WebStat logger");

@@ -35,12 +35,14 @@ namespace WebStat::string_view_stream_helpers {
 
 		[[nodiscard]]
 		std::string_view
-		requireWhile(std::string_view & input, CharPred auto pred, size_t limit)
+		requireWhile(std::string_view & input, CharPred auto pred, size_t limit, size_t minimum = 0)
 		{
 			if (const auto end = std::ranges::find_if_not(input.substr(0, limit), pred); end != input.begin()) {
 				const std::string_view out {input.begin(), end};
-				input = {end, input.end()};
-				return out;
+				if (out.length() >= minimum) {
+					input = {end, input.end()};
+					return out;
+				}
 			}
 			throw std::invalid_argument {"Unexpected input"};
 		}
