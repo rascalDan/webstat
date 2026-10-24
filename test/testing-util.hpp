@@ -36,9 +36,9 @@ namespace WebStat {
 
 	class BasicTestIngestor : public Ingestor {
 	public:
-		BasicTestIngestor(std::string);
+		explicit BasicTestIngestor(std::string);
 		BasicTestIngestor(std::string, IngestorSettings);
-		~BasicTestIngestor() override;
+		~BasicTestIngestor() noexcept override;
 
 		SPECIAL_MEMBERS_DELETE(BasicTestIngestor);
 
@@ -52,7 +52,7 @@ namespace WebStat {
 
 	struct LogFile {
 		LogFile(std::filesystem::path where, size_t entries);
-		~LogFile();
+		~LogFile() noexcept;
 		SPECIAL_MEMBERS_DELETE(LogFile);
 
 		const std::filesystem::path path;

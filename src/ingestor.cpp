@@ -18,7 +18,6 @@
 namespace DB {
 	template<>
 	void
-	// NOLINTNEXTLINE(readability-inconsistent-declaration-parameter-name)
 	DB::Command::bindParam(unsigned int idx, const WebStat::Entity & entity)
 	{
 		bindParamI(idx, entity.id);

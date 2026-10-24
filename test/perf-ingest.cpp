@@ -3,14 +3,13 @@
 #include <fstream>
 
 #include "testing-util.hpp"
-#include <c++11Helpers.h>
-
-#include <ingestor.hpp>
 
 namespace {
+	// NOLINTNEXTLINE(bugprone-throwing-static-initialization)
 	const std::filesystem::path TMP_LOG = std::format("/tmp/webstat-perf-{}.log", getpid());
 
 	constexpr size_t LOG_LINES = 10000;
+	// NOLINTNEXTLINE(bugprone-throwing-static-initialization)
 	const WebStat::LogFile LOG_FILE {TMP_LOG, LOG_LINES};
 
 	void
@@ -22,7 +21,9 @@ namespace {
 	class PerfIngestor : public WebStat::BasicTestIngestor {
 		using BasicTestIngestor::BasicTestIngestor;
 
+	protected:
 		[[gnu::format(printf, 3, 4)]] void
+		// NOLINTNEXTLINE(modernize-avoid-variadic-functions)
 		log(int, const char * msgfmt, ...) const override
 		{
 			va_list args;
@@ -42,7 +43,8 @@ namespace {
 						.fallbackDir = std::format("/tmp/webstat-{}", getpid()),
 						.maxBatchSize = static_cast<size_t>(state.range(0)),
 				}};
-		for (auto loop : state) {
+		// NOLINTNEXTLINE(clang-analyzer-deadcode.DeadStores)
+		for (const auto _ : state) {
 			std::ifstream logFile {TMP_LOG};
 			ingestor.ingestLog(logFile);
 		}

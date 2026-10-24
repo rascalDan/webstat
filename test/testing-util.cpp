@@ -29,9 +29,13 @@ namespace WebStat {
 		std::filesystem::create_directories(settings.fallbackDir);
 	}
 
-	BasicTestIngestor::~BasicTestIngestor()
+	BasicTestIngestor::~BasicTestIngestor() noexcept
 	{
-		std::filesystem::remove_all(settings.fallbackDir);
+		try {
+			std::filesystem::remove_all(settings.fallbackDir);
+		}
+		catch (...) { // NOLINT(bugprone-empty-catch) Swallow error in destructor
+		}
 	}
 
 	utsname
@@ -59,19 +63,19 @@ namespace WebStat {
 
 		Strings strings;
 
-		auto genIp = [&generator]() {
+		auto genIp = [&generator] {
 			static std::uniform_int_distribution<unsigned short> octetDistrib {0, std::numeric_limits<uint8_t>::max()};
 			return std::format("{}.{}.{}.{}", octetDistrib(generator), octetDistrib(generator), octetDistrib(generator),
 					octetDistrib(generator)
 
 			);
 		};
-		auto getStrGen = [&generator](size_t minLen, size_t maxLen) {
-			return [minLen, maxLen, &generator]() {
+		const auto getStrGen = [&generator](size_t minLen, size_t maxLen) {
+			return [minLen, maxLen, &generator] {
 				std::uniform_int_distribution<char> charDistrib {'a', 'z'};
 				std::uniform_int_distribution<size_t> lenDistrib {minLen, maxLen};
 				std::string out;
-				std::generate_n(std::back_inserter(out), lenDistrib(generator), [&generator, &charDistrib]() {
+				std::generate_n(std::back_inserter(out), lenDistrib(generator), [&generator, &charDistrib] {
 					return charDistrib(generator);
 				});
 				return out;
@@ -101,9 +105,9 @@ namespace WebStat {
 		std::uniform_int_distribution<size_t> sizeDistrib {MISC_MIN, MISC_MAX};
 		std::uniform_int_distribution<size_t> durationDistrib {MISC_MIN, MISC_MAX};
 		uint64_t tick = TICK_START;
-		auto randomString = [&generator](auto & stringSet) {
+		const auto randomString = [&generator](auto & stringSet) {
 			std::uniform_int_distribution<size_t> choiceDistrib {0, stringSet.size() - 1};
-			return stringSet[choiceDistrib(generator)];
+			return stringSet.at(choiceDistrib(generator));
 		};
 
 		std::ofstream logfile {path};
@@ -116,8 +120,9 @@ namespace WebStat {
 		}
 	}
 
-	LogFile::~LogFile()
+	LogFile::~LogFile() noexcept
 	{
-		std::filesystem::remove(path);
+		std::error_code err;
+		std::filesystem::remove(path, err);
 	}
 }
