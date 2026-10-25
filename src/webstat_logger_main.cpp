@@ -119,7 +119,6 @@ main(int argc, char * const * argv)
 		po::store(po::parse_config_file(rcPath->second.as<std::string>().c_str(), opts), optVars);
 	}
 
-	// NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks)
 	if (optVars.contains("help")) {
 		std::cout << opts << '\n';
 		return EXIT_FAILURE;
