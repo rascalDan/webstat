@@ -35,22 +35,20 @@ namespace WebStat {
 	}
 
 	namespace detail {
-		template<typename Rep, typename Period, typename AddPeriod>
-		void
-		add(std::chrono::duration<Rep, Period> & subtotal, Rep value)
+		template<typename Rep, typename Period, typename AddDuration>
+		[[nodiscard]] auto
+		add(Rep value)
 		{
-			if constexpr (requires { subtotal += AddPeriod {value}; }) {
-				subtotal += AddPeriod {value};
-			}
+			return std::chrono::duration_cast<std::chrono::duration<Rep, Period>>(AddDuration {value});
 		}
 	}
 
-	template<typename Rep, typename Period>
+	template<std::integral Rep, typename Period>
 	std::chrono::duration<Rep, Period>
 	parseDuration(std::string_view input)
 	{
 		using Duration = std::chrono::duration<Rep, Period>;
-		using Adder = void (*)(Duration & subtotal, Rep value);
+		using Adder = Duration (*)(Rep value);
 		using DurationUnit = std::pair<Adder, std::string_view>;
 		static constexpr std::initializer_list<DurationUnit> DURATION_UNITS {
 				{detail::add<Rep, Period, std::chrono::milliseconds>, "ms"},
@@ -61,7 +59,6 @@ namespace WebStat {
 				{detail::add<Rep, Period, std::chrono::weeks>, "w"},
 		};
 
-		// NOLINTNEXTLINE(misc-const-correctness)
 		std::chrono::duration<Rep, Period> out {};
 
 		while (!std::ranges::all_of(input, ::isspace)) {
@@ -69,9 +66,12 @@ namespace WebStat {
 			Rep count;
 			std::string_view unitChars;
 			input >> count >> unitChars % ::isalpha;
-			if (auto unit = std::ranges::find(DURATION_UNITS, unitChars, &DurationUnit::second);
+			if (const auto unit = std::ranges::find(DURATION_UNITS, unitChars, &DurationUnit::second);
 					unit != DURATION_UNITS.end()) {
-				unit->first(out, count);
+				out += unit->first(count);
+			}
+			else {
+				throw std::invalid_argument {std::string {input}};
 			}
 		}
 

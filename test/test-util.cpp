@@ -11,8 +11,8 @@ namespace {
 
 	BOOST_DATA_TEST_CASE(durationParser,
 			boost::unit_test::data::make<DurationParserData>({
-					{"", std::chrono::milliseconds {0}},
-					{" ", std::chrono::milliseconds {0}},
+					{"", {}},
+					{" ", {}},
 					{"123ms", std::chrono::milliseconds {123}},
 					{"45s", std::chrono::seconds {45}},
 					{"10m", std::chrono::minutes {10}},
@@ -24,9 +24,23 @@ namespace {
 									+ std::chrono::minutes {45} + std::chrono::seconds {10}
 									+ std::chrono::milliseconds {1}},
 					{" 5 m 22 s ", std::chrono::seconds {322}},
+					{" 22 s 5 m ", std::chrono::seconds {322}},
 			}),
 			input, expected)
 	{
 		BOOST_CHECK_EQUAL(expected, (WebStat::parseDuration<std::intmax_t, std::milli>(input)));
+	}
+
+	BOOST_DATA_TEST_CASE(durationParserBad,
+			boost::unit_test::data::make<std::string_view>({
+					"word",
+					" word ",
+					"1w2d3t",
+					"1w2t3d",
+					"1t2w3d",
+			}),
+			input)
+	{
+		BOOST_CHECK_THROW((WebStat::parseDuration<std::intmax_t, std::milli>(input)), std::invalid_argument);
 	}
 }
