@@ -15,6 +15,12 @@
 #include <syslog.h>
 #include <utility>
 
+#ifdef __cpp_lib_format_path
+#	define PATH_FMT
+#else
+#	define PATH_FMT .c_str()
+#endif
+
 namespace DB {
 	template<>
 	void
@@ -466,7 +472,7 @@ namespace WebStat {
 						const auto uninsertableLineId = storeUninsertableLine(dbconn, hostnameId, line, originalError);
 						log(LOG_NOTICE,
 								"Failed to store parsed line and/or associated entties, but did store raw line, %u:%s",
-								uninsertableLineId, line.c_str());
+								uninsertableLineId, line);
 					}
 					catch (const std::exception & excp) {
 						log(LOG_NOTICE, "Failed to store line in any form, DB connection lost? %s", excp.what());
@@ -477,7 +483,7 @@ namespace WebStat {
 			else {
 				stats.linesParseFailed++;
 				const auto unparsableLineId = storeUnparsableLine(dbconn, hostnameId, line);
-				log(LOG_NOTICE, "Failed to parse line, this is a bug: %u:%s", unparsableLineId, line.c_str());
+				log(LOG_NOTICE, "Failed to parse line, this is a bug: %u:%s", unparsableLineId, line);
 			}
 		}
 		stats.batchesCompleted++;
@@ -510,7 +516,7 @@ namespace WebStat {
 		const int err = errno;
 		log(LOG_ERR, "Failed to park %zu queued lines:", lines.size());
 		for (const auto & line : lines) {
-			log(LOG_ERR, "\t%.*s", static_cast<int>(line.length()), line.data());
+			log(LOG_ERR, "\t%s", line);
 		}
 		return std::unexpected(err);
 	}
@@ -608,8 +614,8 @@ namespace WebStat {
 			const auto failPath = auto {path}.replace_extension(".short");
 			std::error_code renameErr;
 			if (std::filesystem::rename(path, failPath, renameErr); renameErr) {
-				log(LOG_WARNING, "Failed to rename failing parked file (%s -> %s) : %s", path.c_str(), failPath.c_str(),
-						renameErr.message().c_str());
+				log(LOG_WARNING, "Failed to rename failing parked file ({} -> {}) : %s", path PATH_FMT,
+						failPath PATH_FMT, renameErr.message());
 			}
 			throw;
 		}

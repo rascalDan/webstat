@@ -162,7 +162,16 @@ namespace WebStat {
 		void terminate(int);
 		static void sigusr1Handler(int);
 		static void sigusr2Handler(int);
-		[[gnu::format(printf, 3, 4)]] virtual void log(int level, const char * msgfmt, ...) const = 0;
+		virtual void logImpl(int level, std::string_view fmt, std::format_args args) const = 0;
+
+		template<typename... Args>
+		void
+		log(const int level, const std::string_view msgfmt, const Args &... args) const
+			requires(std::is_default_constructible_v<std::formatter<Args, char>> && ...)
+		{
+			logImpl(level, msgfmt, std::make_format_args(args...));
+		}
+
 		virtual utsname getHostDetail() const = 0;
 		EntityId getHostnameId(DB::Connection *) const;
 

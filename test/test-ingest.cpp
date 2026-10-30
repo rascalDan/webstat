@@ -345,17 +345,10 @@ namespace {
 		TestIngestor() : WebStat::BasicTestIngestor {"test-hostname"} { }
 
 	protected:
-		[[gnu::format(printf, 3, 4)]] void
-		// NOLINTNEXTLINE(modernize-avoid-variadic-functions)
-		log(int, const char * msgfmt, ...) const override
+		void
+		logImpl(int, const std::string_view msgfmt, const std::format_args args) const override
 		{
-			va_list args;
-			va_start(args, msgfmt);
-			std::unique_ptr<char, decltype(&free)> msg {nullptr, nullptr};
-			BOOST_REQUIRE_GE(vasprintf(std::out_ptr(msg, &free), msgfmt, args), 0);
-			va_end(args);
-			BOOST_REQUIRE(msg);
-			BOOST_TEST_MESSAGE(msg.get());
+			BOOST_TEST_MESSAGE(std::vformat(msgfmt, args));
 			++logsWritten;
 		}
 	};

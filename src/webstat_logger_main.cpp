@@ -14,15 +14,10 @@ namespace {
 		using Ingestor::Ingestor;
 
 	protected:
-		[[gnu::format(printf, 3, 4)]]
 		void
-		// NOLINTNEXTLINE(modernize-avoid-variadic-functions)
-		log(int level, const char * msgfmt, ...) const override
+		logImpl(int level, const std::string_view msgfmt, const std::format_args args) const override
 		{
-			va_list args;
-			va_start(args, msgfmt);
-			vsyslog(level, msgfmt, args);
-			va_end(args);
+			syslog(level, "%s", std::vformat(msgfmt, args).c_str());
 		}
 
 		[[nodiscard]]

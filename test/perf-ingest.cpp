@@ -22,15 +22,11 @@ namespace {
 		using BasicTestIngestor::BasicTestIngestor;
 
 	protected:
-		[[gnu::format(printf, 3, 4)]] void
-		// NOLINTNEXTLINE(modernize-avoid-variadic-functions)
-		log(int, const char * msgfmt, ...) const override
+		void
+		logImpl(int, const std::string_view msgfmt, const std::format_args args) const override
 		{
-			va_list args;
-			va_start(args, msgfmt);
-			vfprintf(stderr, msgfmt, args);
-			fputc('\n', stderr);
-			va_end(args);
+			std::vprint_unicode(std::cerr, msgfmt, args);
+			std::cerr << '\n';
 		}
 	};
 
