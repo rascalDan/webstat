@@ -316,7 +316,7 @@ SELECT
 	h.value hostname,
 	v.id virtual_host_id,
 	v.value virtual_host,
-	remoteip::text,
+	remoteip,
 	request_time,
 	method,
 	protocol,
