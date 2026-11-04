@@ -166,7 +166,7 @@ namespace WebStat {
 	void
 	Ingestor::terminate(int sigNo)
 	{
-		log(LOG_NOTICE, "Caught sig %d, terminating", sigNo);
+		log(LOG_NOTICE, "Caught sig {}, terminating", sigNo);
 		terminated = true;
 		curl_multi_wakeup(curl.get());
 	}
@@ -339,7 +339,7 @@ namespace WebStat {
 			}
 		}
 		catch (const std::exception & excp) {
-			log(LOG_ERR, "Unhandled exception: %s, clearing known entity list", excp.what());
+			log(LOG_ERR, "Unhandled exception: {}, clearing known entity list", excp.what());
 			existingEntities()->clear();
 		}
 		const auto count = std::distance(processingLines.begin(), storedEnd);
@@ -471,11 +471,11 @@ namespace WebStat {
 						const DB::TransactionScope lineTx {*dbconn};
 						const auto uninsertableLineId = storeUninsertableLine(dbconn, hostnameId, line, originalError);
 						log(LOG_NOTICE,
-								"Failed to store parsed line and/or associated entties, but did store raw line, %u:%s",
+								"Failed to store parsed line and/or associated entties, but did store raw line, {}:{}",
 								uninsertableLineId, line);
 					}
 					catch (const std::exception & excp) {
-						log(LOG_NOTICE, "Failed to store line in any form, DB connection lost? %s", excp.what());
+						log(LOG_NOTICE, "Failed to store line in any form, DB connection lost? {}", excp.what());
 						throw originalError;
 					}
 				}
@@ -483,7 +483,7 @@ namespace WebStat {
 			else {
 				stats.linesParseFailed++;
 				const auto unparsableLineId = storeUnparsableLine(dbconn, hostnameId, line);
-				log(LOG_NOTICE, "Failed to parse line, this is a bug: %u:%s", unparsableLineId, line);
+				log(LOG_NOTICE, "Failed to parse line, this is a bug: {}:{}", unparsableLineId, line);
 			}
 		}
 		stats.batchesCompleted++;
@@ -514,9 +514,9 @@ namespace WebStat {
 			}
 		}
 		const int err = errno;
-		log(LOG_ERR, "Failed to park %zu queued lines:", lines.size());
+		log(LOG_ERR, "Failed to park {} queued lines:", lines.size());
 		for (const auto & line : lines) {
-			log(LOG_ERR, "\t%s", line);
+			log(LOG_ERR, "\t{}", line);
 		}
 		return std::unexpected(err);
 	}
@@ -532,7 +532,7 @@ namespace WebStat {
 			job.lastRun = now;
 		}
 		catch (const std::exception & excp) {
-			log(LOG_ERR, "Job run failed: %s", excp.what());
+			log(LOG_ERR, "Job run failed: {}", excp.what());
 			// Error, retry in half the frequency
 			job.lastRun = now - (freq / 2);
 		}
@@ -614,7 +614,7 @@ namespace WebStat {
 			const auto failPath = auto {path}.replace_extension(".short");
 			std::error_code renameErr;
 			if (std::filesystem::rename(path, failPath, renameErr); renameErr) {
-				log(LOG_WARNING, "Failed to rename failing parked file ({} -> {}) : %s", path PATH_FMT,
+				log(LOG_WARNING, "Failed to rename failing parked file ({} -> {}) : {}", path PATH_FMT,
 						failPath PATH_FMT, renameErr.message());
 			}
 			throw;
@@ -799,8 +799,8 @@ namespace WebStat {
 	Ingestor::logStats() const
 	{
 		log(LOG_INFO,
-				"Statistics: linesQueued %zu, linesRead %zu, linesParsed %zu, linesParseFailed %zu, logsInserted %zu, "
-				"entitiesInserted %zu, entitiesKnown %zu, batches(%zu started, %zu completed)",
+				"Statistics: linesQueued {}, linesRead {}, linesParsed {}, linesParseFailed {}, logsInserted {}, "
+				"entitiesInserted {}, entitiesKnown {}, batches({} started, {} completed)",
 				queuedLines.size(), stats.linesRead, stats.linesParsed, stats.linesParseFailed, stats.logsInserted,
 				stats.entitiesInserted, existingEntities->size(), stats.batchesStarted, stats.batchesCompleted);
 	}
