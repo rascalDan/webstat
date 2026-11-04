@@ -16,6 +16,7 @@ namespace WebStat {
 	};
 
 	using CurlPtr = std::unique_ptr<CURL, DeleteWith<&curl_easy_cleanup>>;
+	using CurlUrlPtr = std::unique_ptr<CURLU, DeleteWith<&curl_url_cleanup>>;
 	using CurlMimePtr = std::unique_ptr<curl_mime, DeleteWith<&curl_mime_free>>;
 	using CurlErrorBuf = std::array<char, CURL_ERROR_SIZE>;
 	using CurlMultiPtr = std::unique_ptr<CURLM, DeleteWith<&curl_multi_cleanup>>;
@@ -33,6 +34,7 @@ namespace WebStat {
 		virtual void onError(DB::Connection *) const;
 
 		CurlPtr hnd;
+		CurlUrlPtr url;
 		CurlMimePtr mime;
 		CurlErrorBuf err;
 		std::string result;

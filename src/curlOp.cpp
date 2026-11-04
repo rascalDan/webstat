@@ -11,10 +11,12 @@ namespace WebStat {
 		}
 	}
 
-	CurlOperation::CurlOperation() : hnd {curl_easy_init()}, err {}
+	CurlOperation::CurlOperation() : hnd {curl_easy_init()}, url {curl_url()}, err {}
 	{
+		curl_easy_setopt(hnd.get(), CURLOPT_CURLU, url.get());
 		curl_easy_setopt(hnd.get(), CURLOPT_NOPROGRESS, 1L);
 		curl_easy_setopt(hnd.get(), CURLOPT_MAXREDIRS, 50L);
+		curl_easy_setopt(hnd.get(), CURLOPT_FOLLOWLOCATION, 1L);
 		curl_easy_setopt(hnd.get(), CURLOPT_TCP_KEEPALIVE, 1L);
 		curl_easy_setopt(hnd.get(), CURLOPT_FAILONERROR, 1L);
 		curl_easy_setopt(hnd.get(), CURLOPT_ERRORBUFFER, err.data());

@@ -19,12 +19,12 @@ namespace WebStat {
 	curlGetUserAgentDetail(EntityId entityId, const std::string_view uas, const char * baseUrl)
 	{
 		auto request = std::make_unique<UserAgentLookupOperation>(entityId);
-
-		curl_easy_setopt(request->hnd.get(), CURLOPT_URL, baseUrl);
+		curl_url_set(request->url.get(), CURLUPART_URL, baseUrl, 0);
+		curl_url_set(request->url.get(), CURLUPART_QUERY, std::format("{}={}", "ua", uas).c_str(),
+				CURLU_APPENDQUERY | CURLU_URLENCODE);
+		curl_url_set(request->url.get(), CURLUPART_QUERY, "getJSON=all", CURLU_APPENDQUERY);
 		curl_easy_setopt(
 				request->hnd.get(), CURLOPT_USERAGENT, "WebStat/0; +https://git.randomdan.homeip.net/repo/webstat/");
-		request->addForm("uas", uas);
-		request->addForm("getJSON", "all");
 
 		return request;
 	}
