@@ -222,7 +222,9 @@ namespace WebStat {
 	Ingestor::handleCurlOperations()
 	{
 		if (!curlOperations.empty()) {
-			curl_multi_perform(curl.get(), nullptr);
+			if (const auto performCode = curl_multi_perform(curl.get(), nullptr); performCode != CURLM_OK) {
+				log(LOG_WARNING, "curl_multi_perform: {}", std::to_underlying(performCode));
+			}
 		}
 	}
 
@@ -776,8 +778,10 @@ namespace WebStat {
 		auto curlOp = curlGetUserAgentDetail(*entityId, value, settings.userAgentAPI.c_str());
 		{
 			const std::scoped_lock curlOperationsLock {curlOperationsMutex};
-			const auto added = curlOperations.emplace(curlOp->hnd.get(), std::move(curlOp));
-			curl_multi_add_handle(curl.get(), added.first->first);
+			if (const auto addCode = curl_multi_add_handle(curl.get(), curlOp->hnd.get()); addCode != CURLM_OK) {
+				throw std::runtime_error {std::format("curl_multi_add_handle: {}", std::to_underlying(addCode))};
+			}
+			curlOperations.emplace(curlOp->hnd.get(), std::move(curlOp));
 		}
 	}
 
