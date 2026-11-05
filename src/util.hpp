@@ -112,6 +112,12 @@ namespace WebStat {
 				return &value;
 			}
 
+			LockedValueType &
+			operator*()
+			{
+				return value;
+			}
+
 		private:
 			LockedValueType & value;
 			LockType lock;
@@ -139,6 +145,23 @@ namespace WebStat {
 		operator()()
 		{
 			return unique();
+		}
+
+		template<typename F, typename... Args>
+			requires(std::is_invocable_v<F, const ValueType &, Args...>)
+		auto
+		invoke(F && func, Args &&... args) const
+		{
+			return std::invoke(std::forward<F>(func), *shared(), std::forward<Args>(args)...);
+		}
+
+		template<typename F, typename... Args>
+			requires(
+					std::is_invocable_v<F, ValueType &, Args...> && !std::is_invocable_v<F, const ValueType &, Args...>)
+		auto
+		invoke(F && func, Args &&... args)
+		{
+			return std::invoke(std::forward<F>(func), *unique(), std::forward<Args>(args)...);
 		}
 
 	private:
