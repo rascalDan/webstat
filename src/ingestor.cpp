@@ -203,50 +203,94 @@ namespace WebStat {
 		}
 	}
 
-	auto
-	Ingestor::withCurlLock(auto &&... operation)
-	{
-		const std::scoped_lock curlOperationsLock {curlOperationsMutex};
-		return std::invoke(std::forward<decltype(operation)>(operation)...);
-	}
-
 	bool
 	Ingestor::haveCurlOperations()
 	{
-		return withCurlLock([this] {
-			return !curlOperations.empty();
-		});
+		return !curlOperations->empty();
 	}
 
+	constexpr auto FILTER_NEW_OPS = std::views::values | std::views::filter(std::not_fn(&CurlOperation::curlm))
+			| std::views::filter(std::not_fn(&CurlOperation::resultCode));
+	constexpr auto FILTER_RUNNING_OPS = std::views::values | std::views::filter(&CurlOperation::curlm);
+
 	void
-	Ingestor::handleCurlOperations()
+	Ingestor::performCurlOperations()
 	{
-		if (!curlOperations.empty()) {
-			curl_multi_perform(curl.get(), nullptr);
+		// Add new operations to multi stack, see if any are running
+		if (curlOperations.invoke([this](const CurlOperationMap & ops) {
+				if (!ops.empty()) {
+					for (const auto & newOp : ops | FILTER_NEW_OPS) {
+						if (const auto addCode = curl_multi_add_handle(curl.get(), newOp->hnd.get());
+								addCode != CURLM_OK) {
+							throw std::logic_error(
+									std::format("curl_multi_add_handle error: {}", std::to_underlying(addCode)));
+						}
+						newOp->curlm = curl.get();
+						++stats.curlOpsStarted;
+					}
+					return !std::ranges::empty(ops | FILTER_RUNNING_OPS);
+				}
+				return false;
+			})) {
+			// Perform...
+			if (const auto performCode = curl_multi_perform(curl.get(), nullptr); performCode != CURLM_OK) {
+				log(LOG_WARNING, "curl_multi_perform: {}", std::to_underlying(performCode));
+			}
+			// Process multi info
+			int remaining {};
+			while (auto msg = curl_multi_info_read(curl.get(), &remaining)) {
+				if (msg->msg == CURLMSG_DONE) {
+					const auto & operation = curlOperations()->at(msg->easy_handle);
+					operation->resultCode = msg->data.result;
+					operation->curlm = nullptr;
+					if (const auto removeCode = curl_multi_remove_handle(curl.get(), msg->easy_handle);
+							removeCode != CURLM_OK) {
+						throw std::logic_error(
+								std::format("curl_multi_remove_handle error: {}", std::to_underlying(removeCode)));
+					}
+				}
+			}
 		}
 	}
+
+	constexpr auto FILTER_READY_OPS = std::views::values | std::views::filter(std::not_fn(&CurlOperation::curlm))
+			| std::views::filter([](auto && newOp) {
+				  return newOp->resultCode.has_value();
+			  })
+			| std::views::transform(&std::unique_ptr<CurlOperation>::get);
 
 	Ingestor::Job::Result
 	Ingestor::jobHandleCompleteCurlOps()
 	{
-		int remaining {};
-		while (auto msg = withCurlLock(curl_multi_info_read, curl.get(), &remaining)) {
-			if (msg->msg == CURLMSG_DONE) {
-				const auto result = msg->data.result;
-				if (const auto operation = withCurlLock([this, handle = msg->easy_handle] {
-						curl_multi_remove_handle(curl.get(), handle);
-						return curlOperations.extract(handle);
-					})) {
-					std::invoke((result == CURLE_OK) ? &CurlOperation::whenComplete : &CurlOperation::onError,
-							operation.mapped(), dbpool->get().get());
-				}
-				else {
-					log(LOG_WARNING, "Failed to lookup CurlOperation");
-				}
+		const auto ready = *curlOperations.shared() | FILTER_READY_OPS | std::ranges::to<std::vector>();
+
+		if (!ready.empty()) {
+			const auto dbconn = dbpool->get();
+			std::optional<const DB::TransactionScope> txBatch;
+			if (ready.size() > 1) {
+				txBatch.emplace(*dbconn.get());
 			}
+			std::ranges::for_each(ready, [&](auto readyOp) {
+				const auto success = (*readyOp->resultCode == CURLE_OK);
+				const auto func = success ? &CurlOperation::whenComplete : &CurlOperation::onError;
+				try {
+					const DB::TransactionScope opTx {*dbconn.get()};
+					std::invoke(func, readyOp, dbconn.get());
+				}
+				catch (const std::exception & err) {
+					log(LOG_ERR, "CurlOperation completion job failed: {}", err.what());
+				}
+			});
+			txBatch.reset();
+			curlOperations.invoke([&ready](CurlOperationMap & ops) {
+				std::ranges::for_each(ready, [&ops](auto readyOp) {
+					ops.erase(readyOp);
+				});
+			});
+			stats.curlOpsCompleted += ready.size();
 		}
-		return [] {
-			return 0;
+		return [count = ready.size()] {
+			return count;
 		};
 	}
 
@@ -268,7 +312,7 @@ namespace WebStat {
 			if (expiredThenSet(lastCheckedJobs, settings.checkJobsAfter)) {
 				runJobsAsNeeded();
 			}
-			withCurlLock(&Ingestor::handleCurlOperations, this);
+			performCurlOperations();
 		}
 		finishAllJobs();
 		storeQueueLines.currentRun.reset();
@@ -302,14 +346,10 @@ namespace WebStat {
 	Ingestor::finishCurlOperations()
 	{
 		static constexpr CurlTimeOutT LOOP_WAIT = std::chrono::seconds {1};
-		withCurlLock([this] {
-			if (!curlOperations.empty()) {
-				int running = -1;
-				while (running && curl_multi_poll(curl.get(), nullptr, 0, LOOP_WAIT.count(), &running) == CURLM_OK) {
-					curl_multi_perform(curl.get(), nullptr);
-				}
-			}
-		});
+		auto running = static_cast<int>(curlOperations->size());
+		while (running && curl_multi_poll(curl.get(), nullptr, 0, LOOP_WAIT.count(), &running) == CURLM_OK) {
+			performCurlOperations();
+		}
 	}
 
 	std::pair<std::future<Ingestor::Job::Result> &, bool>
@@ -773,12 +813,8 @@ namespace WebStat {
 		if (!entityId) {
 			return;
 		}
-		auto curlOp = curlGetUserAgentDetail(*entityId, value, settings.userAgentAPI.c_str());
-		{
-			const std::scoped_lock curlOperationsLock {curlOperationsMutex};
-			const auto added = curlOperations.emplace(curlOp->hnd.get(), std::move(curlOp));
-			curl_multi_add_handle(curl.get(), added.first->first);
-		}
+		auto newOp = curlGetUserAgentDetail(*entityId, value, settings.userAgentAPI.c_str());
+		curlOperations()->emplace(newOp->hnd.get(), std::move(newOp));
 	}
 
 	template<typename... T>
@@ -800,9 +836,11 @@ namespace WebStat {
 	{
 		log(LOG_INFO,
 				"Statistics: linesQueued {}, linesRead {}, linesParsed {}, linesParseFailed {}, logsInserted {}, "
-				"entitiesInserted {}, entitiesKnown {}, batches({} started, {} completed)",
+				"entitiesInserted {}, entitiesKnown {}, batches({} started, {} completed), curlOps({} started, {} "
+				"completed)",
 				queuedLines.size(), stats.linesRead, stats.linesParsed, stats.linesParseFailed, stats.logsInserted,
-				stats.entitiesInserted, existingEntities->size(), stats.batchesStarted, stats.batchesCompleted);
+				stats.entitiesInserted, existingEntities->size(), stats.batchesStarted, stats.batchesCompleted,
+				stats.curlOpsStarted, stats.curlOpsCompleted);
 	}
 
 	void

@@ -414,6 +414,8 @@ namespace {
 		BOOST_CHECK_GE(stats.entitiesInserted, 1);
 		BOOST_CHECK_EQUAL(stats.linesParked + stats.logsInserted, 10);
 		BOOST_CHECK_EQUAL(stats.entitiesInserted, existingEntities->size());
+		BOOST_CHECK_EQUAL(stats.curlOpsStarted, 1);
+		BOOST_CHECK_EQUAL(stats.curlOpsCompleted, 1);
 	}
 
 	BOOST_AUTO_TEST_CASE(TerminateHandler, *boost::unit_test::timeout(5))

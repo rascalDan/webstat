@@ -38,5 +38,7 @@ namespace WebStat {
 		CurlMimePtr mime;
 		CurlErrorBuf err;
 		std::string result;
+		CURLM * curlm {};
+		std::optional<CURLcode> resultCode;
 	};
 }
