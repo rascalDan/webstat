@@ -112,6 +112,8 @@ namespace WebStat {
 			size_t entitiesInserted;
 			size_t batchesStarted;
 			size_t batchesCompleted;
+			size_t curlOpsStarted;
+			size_t curlOpsCompleted;
 			constexpr bool operator==(const Ingestor::Stats &) const = default;
 		};
 
@@ -148,9 +150,8 @@ namespace WebStat {
 		static EntityId storeUnparsableLine(DB::Connection *, EntityId, std::string_view);
 		static EntityId storeUninsertableLine(DB::Connection *, EntityId, std::string_view, const std::exception &);
 		void onNewUserAgent(const Entity &) const;
-		auto withCurlLock(auto &&...);
 		bool haveCurlOperations();
-		void handleCurlOperations();
+		void performCurlOperations();
 		void logStats() const;
 		void clearStats();
 		void finalizeJob(Job &, minutes freq, Job::LastRunTime::clock::time_point now);
@@ -175,9 +176,9 @@ namespace WebStat {
 		virtual utsname getHostDetail() const = 0;
 		EntityId getHostnameId(DB::Connection *) const;
 
-		using CurlOperations = std::map<CURL *, std::unique_ptr<CurlOperation>>;
+		using CurlOperationMap = std::map<CURL *, std::unique_ptr<CurlOperation>>;
+		using CurlOperations = ThreadSafeT<CurlOperationMap>;
 		CurlMultiPtr curl;
 		mutable CurlOperations curlOperations;
-		mutable std::mutex curlOperationsMutex;
 	};
 }
