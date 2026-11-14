@@ -716,6 +716,8 @@ namespace {
 				.entitiesInserted = 6,
 				.batchesStarted = 7,
 				.batchesCompleted = 8,
+				.curlOpsStarted = 9,
+				.curlOpsCompleted = 10,
 		};
 		raise(SIGUSR2);
 		BOOST_CHECK_EQUAL(stats, Stats {});
